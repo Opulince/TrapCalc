@@ -483,10 +483,11 @@ The v4 `@theme` block replaces the old inline `tailwind.config`. `darkMode: 'cla
 ```css
 @import "tailwindcss";
 
-@source "../index.html";
-@source "../about.html";
-@source "../privacy.html";
-@source "../assets/ui.js";
+/* Globs, not explicit paths: the HTML pages do not exist until Task 6, and an explicit
+   @source to a missing file can throw. These patterns match whatever exists now and pick
+   the pages up automatically once they land. */
+@source "../*.html";
+@source "../assets/*.js";
 
 @theme {
   --color-accent-50:  #ecfeff;
