@@ -133,7 +133,7 @@ Expected: `phase-1`. All later tasks commit here.
   "type": "module",
   "scripts": {
     "build": "tailwindcss -i ./src/input.css -o ./assets/app.css --minify",
-    "test": "node --test test/",
+    "test": "node --test test/*.test.js",
     "deploy": "npm run build && wrangler pages deploy ."
   },
   "devDependencies": {
