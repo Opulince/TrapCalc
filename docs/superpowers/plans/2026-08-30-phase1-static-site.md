@@ -916,71 +916,35 @@ git commit -m "feat: add robots, sitemap, OG card and cookieless analytics"
 
 ---
 
-### Task 8: Deploy to Cloudflare Pages and verify the budget
+### Task 8: Deploy to Hostinger (own subdomain)
+
+**Decision change:** hosting moved from Cloudflare Pages to an existing Hostinger plan, on its
+own subdomain. A subdomain means the site is served from its document root, so the existing
+root-absolute `/assets/...` paths keep working with no changes.
+
+Three consequences vs the Cloudflare plan:
+1. **Clean URLs are not automatic.** Pages mapped `/about` to `about.html`; LiteSpeed does not.
+   Requires `.htaccess`.
+2. **No Web Analytics toggle.** Cloudflare Web Analytics still works on any host via its beacon
+   snippet, but it now needs the token after all. Deferred until the site is live.
+3. **Upload is manual** via hPanel File Manager, so the deliverable is a zip.
 
 **Files:**
-- Modify: none (deployment only)
+- Create: `.htaccess`, `scripts/stage.mjs` (modify to include `.htaccess`)
+- Modify: `package.json` (drop wrangler, add zip packaging)
+- Modify: the 15 hardcoded `lords-trap-sim.pages.dev` references once the real subdomain is known
 
-**Interfaces:**
-- Consumes: the whole built site.
-- Produces: a live `https://lords-trap-sim.pages.dev`.
+- [ ] **Step 1: Add `.htaccess` for clean URLs and static-asset headers**
 
-- [ ] **Step 1: Deploy**
+- [ ] **Step 2: Include `.htaccess` in the staged `dist/` and add a `package` script producing `dist.zip`**
 
-```bash
-npx wrangler pages deploy . --project-name=lords-trap-sim
-```
+- [ ] **Step 3: Swap all 15 hardcoded URLs to the real subdomain** (blocked on the subdomain name)
 
-This prompts for a browser login on first run. Expected output ends with a deployment URL.
+- [ ] **Step 4: Upload via hPanel File Manager** — user action: upload `dist.zip` into the
+  subdomain's document root, extract, delete the zip.
 
-- [ ] **Step 2: Verify every route serves**
-
-```bash
-for r in "" about privacy sitemap.xml robots.txt assets/app.css assets/ui.js assets/engine.js; do
-  printf "%-22s %s\n" "/$r" "$(curl -s -o /dev/null -w '%{http_code}' https://lords-trap-sim.pages.dev/$r)"
-done
-```
-
-Expected: `200` for all eight.
-
-- [ ] **Step 3: Confirm the runtime CDN is gone from production**
-
-```bash
-curl -s https://lords-trap-sim.pages.dev/ | grep -c "cdn.tailwindcss.com"
-```
-
-Expected: `0`.
-
-- [ ] **Step 4: Check the JS budget against the constraint**
-
-```bash
-for f in assets/ui.js assets/engine.js assets/app.css; do
-  printf "%-20s %s bytes\n" "$f" "$(curl -s https://lords-trap-sim.pages.dev/$f | wc -c)"
-done
-```
-
-Expected: `ui.js` + `engine.js` combined **under 100,000 bytes**. If over, the extraction pulled in something it should not have.
-
-- [ ] **Step 5: Run a mobile Lighthouse audit**
-
-```bash
-npx lighthouse https://lords-trap-sim.pages.dev/ --preset=desktop --quiet --chrome-flags="--headless" --only-categories=performance --form-factor=mobile --throttling-method=simulate --output=json --output-path=./lighthouse.json
-node -e "const r=require('./lighthouse.json');console.log('LCP', r.audits['largest-contentful-paint'].displayValue, '| perf', r.categories.performance.score*100)"
-```
-
-Expected: LCP **under 2.5s**, performance score 90+. The CDN removal is what buys this; if LCP is still over budget, the OG image or the CSS is the next thing to check.
-
-- [ ] **Step 6: Verify the simulator works with an ad blocker enabled**
-
-Open the live URL in a browser with uBlock Origin active. Run a simulation. Expected: results render normally, no console errors, no prompts about the blocker.
-
-- [ ] **Step 7: Commit and tag**
-
-```bash
-git add -A
-git commit -m "chore: phase 1 deployment verified"
-git tag phase-1
-```
+- [ ] **Step 5: Verify live** — all three routes 200, clean URLs resolve, assets load, a
+  simulation runs, and `curl` confirms `/docs` and `/test` are absent.
 
 ---
 
