@@ -999,6 +999,9 @@ git tag phase-1
 
 Two deliberate deviations, both recorded above: **guide placeholder routes are dropped** (Phase 2 owns guides; empty routes are the thin content that gets AdSense rejected), and **the engine/UI split was added** (not named in the spec, but required — the CDN removal forces the JS out of the HTML anyway, and a DOM-free engine is what makes the spec's own testing requirement achievable, plus it is the seam Phase 3's regression corpus plugs into).
 
-**Placeholder scan:** Three values are intentionally left for the implementer because they cannot be known until an external account exists — `opulince`, `YOUR_CF_BEACON_TOKEN`, and the `lords-trap-sim` project name if taken. Each is called out at its use site with what to do. No "TBD", no "add error handling", no "similar to Task N".
+**Placeholder scan:** None remain. The Ko-fi handle (`opulince`) and Pages project name
+(`lords-trap-sim`) are now filled in throughout. The analytics beacon token was eliminated
+rather than deferred — Task 7 leaves analytics to the Pages project toggle, switched on in
+Task 8. No "TBD", no "add error handling", no "similar to Task N".
 
 **Type consistency:** `runSimulation(cfg)` returns the same field names the Task 2 test asserts (`outcome`, `atkLost`, `defLost`, `defRows[{tier,type,start,lost,surv}]`, `rounds`). `effStat(cfg, type, col)` has the same argument order in Tasks 3 and 4. `dominantType(cfg)` is defined in Task 3 and consumed in Task 4. `attackerTierShare(cfg)` returns `.mix` in both.
