@@ -43,6 +43,30 @@ test('every page has Open Graph tags for Discord unfurling', () => {
   }
 });
 
+const ROUTE_BY_PAGE = { 'index.html': '/', 'about.html': '/about', 'privacy.html': '/privacy' };
+
+test('og:url and canonical resolve to each page\'s own route, not a shared or wrong one', () => {
+  const titles = [];
+  for (const p of PAGES) {
+    const html = read(p);
+    const route = ROUTE_BY_PAGE[p];
+    const expectedUrl = `https://lords-trap-sim.pages.dev${route}`;
+
+    const ogUrlMatch = html.match(/<meta property="og:url" content="([^"]+)"/);
+    assert.ok(ogUrlMatch, `${p} missing og:url content`);
+    assert.equal(ogUrlMatch[1], expectedUrl, `${p} og:url should be ${expectedUrl}, got ${ogUrlMatch[1]}`);
+
+    const canonicalMatch = html.match(/<link rel="canonical" href="([^"]+)"/);
+    assert.ok(canonicalMatch, `${p} missing canonical href`);
+    assert.equal(canonicalMatch[1], expectedUrl, `${p} canonical should be ${expectedUrl}, got ${canonicalMatch[1]}`);
+
+    const ogTitleMatch = html.match(/<meta property="og:title" content="([^"]+)"/);
+    assert.ok(ogTitleMatch, `${p} missing og:title content`);
+    titles.push(ogTitleMatch[1]);
+  }
+  assert.ok(new Set(titles).size > 1, 'og:title must not be identical across all pages');
+});
+
 test('the tip jar never claims a running cost', () => {
   const banned = /server cost|hosting cost|pay the server|keep the lights|running costs/i;
   for (const p of PAGES) {

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://lords-trap-sim.pages.dev/sitemap.xml
