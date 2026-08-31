@@ -7,7 +7,7 @@
     "build": "tailwindcss -i ./src/input.css -o ./assets/app.css --minify",
     "test": "node --test test/*.test.js",
     "stage": "node scripts/stage.mjs",
-    "deploy": "npm run build && npm run stage && npx wrangler pages deploy dist --project-name=lords-trap-sim"
+    "package": "npm run build && npm run stage && powershell -Command \"Compress-Archive -Path dist/* -DestinationPath dist.zip -Force\""
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.0.0",

@@ -18,3 +18,9 @@ for (const item of items) {
   cpSync(src, dest, { recursive: true });
   console.log(`copied ${item}`);
 }
+
+// .htaccess is a dotfile; copy it explicitly since it's easy to miss with globs.
+const htaccessSrc = path.join(root, '.htaccess');
+const htaccessDest = path.join(dist, '.htaccess');
+cpSync(htaccessSrc, htaccessDest);
+console.log('copied .htaccess');

@@ -125,3 +125,14 @@ test('robots.txt and sitemap.xml are consistent', () => {
       `sitemap missing ${route}`);
   }
 });
+
+test('.htaccess exists and maps extensionless requests to their .html file', () => {
+  const htaccessUrl = new URL('../.htaccess', import.meta.url);
+  assert.ok(existsSync(htaccessUrl), '.htaccess is missing from the project root');
+  const htaccess = readFileSync(htaccessUrl, 'utf8');
+  assert.match(htaccess, /RewriteEngine On/);
+  assert.match(htaccess, /%\{REQUEST_FILENAME\}\.html\s+-f/,
+    '.htaccess must guard the rewrite on the .html file actually existing');
+  assert.match(htaccess, /RewriteRule[^\n]*\$1\.html/,
+    '.htaccess must rewrite extensionless requests to the matching .html file');
+});
