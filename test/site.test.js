@@ -79,6 +79,43 @@ test('no ad or consent scripts ship in phase 1', () => {
   for (const p of PAGES) assert.ok(!banned.test(read(p)), `${p} contains ad code`);
 });
 
+test('every /assets/ reference in the pages exists on disk', () => {
+  const root = new URL('../', import.meta.url);
+  for (const p of PAGES) {
+    const html = read(p);
+    const refs = [...html.matchAll(/(?:href|src)="(\/assets\/[^"]+)"/g)].map((m) => m[1]);
+    assert.ok(refs.length > 0, `${p} has no /assets/ references to check`);
+    for (const ref of refs) {
+      const fileUrl = new URL(`.${ref}`, root);
+      assert.ok(existsSync(fileUrl), `${p} references ${ref}, which does not exist`);
+    }
+  }
+});
+
+test('engine.js exports everything ui.js imports from it', async () => {
+  const uiSrc = readFileSync(new URL('../assets/ui.js', import.meta.url), 'utf8');
+  const importMatch = uiSrc.match(/import\s*\{([^}]+)\}\s*from\s*['"]\.\/engine\.js['"]/);
+  assert.ok(importMatch, 'ui.js has no recognizable import from ./engine.js');
+  const names = importMatch[1]
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => s.split(/\s+as\s+/)[0].trim());
+  assert.ok(names.length > 0, 'no imported names parsed out of ui.js');
+
+  const engine = await import('../assets/engine.js');
+  for (const name of names) {
+    assert.ok(name in engine, `engine.js does not export ${name}, which ui.js imports`);
+  }
+});
+
+test('engine.js + ui.js stay under the JS budget', () => {
+  const engineBytes = readFileSync(new URL('../assets/engine.js', import.meta.url)).length;
+  const uiBytes = readFileSync(new URL('../assets/ui.js', import.meta.url)).length;
+  assert.ok(engineBytes + uiBytes < 100000,
+    `engine.js + ui.js is ${engineBytes + uiBytes} bytes, over the 100000 byte budget`);
+});
+
 test('robots.txt and sitemap.xml are consistent', () => {
   const robots = read('robots.txt');
   const sitemap = read('sitemap.xml');

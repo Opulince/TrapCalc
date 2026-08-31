@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tailwindcss -i ./src/input.css -o ./assets/app.css --minify",
     "test": "node --test test/*.test.js",
-    "deploy": "npm run build && wrangler pages deploy ."
+    "stage": "node scripts/stage.mjs",
+    "deploy": "npm run build && npm run stage && npx wrangler pages deploy dist --project-name=lords-trap-sim"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.0.0",

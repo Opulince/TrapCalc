@@ -825,8 +825,20 @@ $('btnSim').addEventListener('click', (e) => doSim(e.currentTarget));
 $('btnSimMobile').addEventListener('click', (e) => doSim(e.currentTarget));
 
 /* ═══════════════════════════ INIT ═══════════════════════════ */
-buildTiers();
-buildLineups();
-buildTierMixes();
-buildDefStats();
-renderAll();
+try {
+  buildTiers();
+  buildLineups();
+  buildTierMixes();
+  buildDefStats();
+  renderAll();
+} catch (err) {
+  console.error(err);
+  const main = document.querySelector('main');
+  if (main) {
+    main.innerHTML =
+      '<div class="rounded-xl border border-rose-500/50 bg-slate-900/60 p-4">' +
+      '<div class="font-mono text-[10px] uppercase tracking-[0.22em] text-rose-300">Failed to load</div>' +
+      '<p class="mt-1 text-sm text-slate-300">Something broke while setting up the simulator. ' +
+      'Try reloading the page — nothing you entered was lost.</p></div>';
+  }
+}
