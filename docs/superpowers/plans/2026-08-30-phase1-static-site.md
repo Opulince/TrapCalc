@@ -851,7 +851,13 @@ Sitemap: https://lords-trap-sim.pages.dev/sitemap.xml
 
 Discord is the primary distribution channel and unfurls every link, so this is not decoration. Capture the simulator with results showing at 1200×630 and save as `assets/og.png`.
 
-Capture it with headless Chrome, which needs no extra dependency:
+Capture it with headless Chrome. **It must be served over HTTP, not `file://`** — the pages
+reference `/assets/...` with absolute paths, which resolve to the filesystem root under
+`file://` and leave the page unstyled and scriptless. Start a server first:
+
+```bash
+python -m http.server 8731 &
+```
 
 ```bash
 npx --yes puppeteer-core --version 2>/dev/null || npm install --no-save puppeteer
@@ -861,7 +867,7 @@ const puppeteer=require('puppeteer');
   const b=await puppeteer.launch();
   const p=await b.newPage();
   await p.setViewport({width:1200,height:630});
-  await p.goto('file://'+process.cwd().replace(/\\/g,'/')+'/index.html');
+  await p.goto('http://localhost:8731/index.html', {waitUntil:'networkidle0'});
   await p.click('#btnSimMobile').catch(()=>{});
   await new Promise(r=>setTimeout(r,600));
   await p.screenshot({path:'assets/og.png'});
