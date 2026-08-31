@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Lords Mobile — Solo Trap &amp; Rally Defense Simulator</title>
+<meta name="description" content="Free Lords Mobile trap simulator. Model solo marches and full rallies against your garrison, wall and traps, and see exactly which tiers die." />
+<link rel="canonical" href="https://lords-trap-sim.pages.dev/" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lords-trap-sim.pages.dev/" />
+<meta property="og:title" content="Lords Mobile Trap Simulator" />
+<meta property="og:description" content="Model solo marches and rallies against your trap. See which tiers die, what your wall changes, and whether you hold." />
+<meta property="og:image" content="https://lords-trap-sim.pages.dev/assets/og.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body class="min-h-screen font-sans text-slate-200 antialiased selection:bg-accent-500/30">
+
+<!-- ══════════════════════════ HEADER ══════════════════════════ -->
+<header class="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/90 backdrop-blur-xl">
+  <div class="mx-auto max-w-[1500px] px-4 py-3">
+    <div class="flex flex-wrap items-center gap-x-5 gap-y-3">
+      <div class="flex min-w-0 items-center gap-3">
+        <div class="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-accent-500/40 bg-accent-500/10 text-accent-300">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z"/></svg>
+        </div>
+        <div class="min-w-0">
+          <h1 class="truncate text-sm font-semibold tracking-tight text-slate-50 sm:text-base">Solo Trap &amp; Rally Defense Simulator</h1>
+          <p class="truncate font-mono text-[10px] uppercase tracking-[0.22em] text-slate-400">Lords Mobile · Combat Lab</p>
+        </div>
+      </div>
+
+      <div class="ml-auto grid w-full grid-cols-2 divide-slate-800 overflow-hidden rounded-lg border border-slate-800 bg-slate-900/60 sm:w-auto sm:grid-cols-4 sm:divide-x">
+        <div class="border-b border-slate-800 px-3.5 py-2 sm:border-b-0">
+          <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Troops</div>
+          <div id="hdrCount" class="num text-sm font-semibold text-slate-100">0</div>
+        </div>
+        <div class="border-b border-slate-800 px-3.5 py-2 sm:border-b-0">
+          <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Might</div>
+          <div id="hdrMight" class="num text-sm font-semibold text-accent-300">0</div>
+        </div>
+        <div class="px-3.5 py-2">
+          <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Lunar Gear</div>
+          <div id="hdrGear" class="num text-sm font-semibold text-slate-100">0</div>
+        </div>
+        <div class="px-3.5 py-2">
+          <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Phalanx</div>
+          <div id="hdrForm" class="text-sm font-semibold text-accent-300">Infantry</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="mx-auto max-w-[1500px] px-4 pb-28 pt-5 lg:pb-8">
+  <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+
+    <!-- ══════════════════════ LEFT COLUMN ══════════════════════ -->
+    <div class="space-y-5">
+
+      <!-- DEFENDER SETUP -->
+      <section class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60">
+        <div class="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+          <div>
+            <div class="font-mono text-[10px] uppercase tracking-[0.22em] text-slate-400">01 — Defender</div>
+            <h2 class="text-sm font-semibold text-slate-50">Command &amp; Bonuses</h2>
+          </div>
+          <button id="btnResetStats" class="rounded-md border border-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition hover:border-slate-600 hover:text-slate-100">Reset</button>
+        </div>
+
+        <div id="defStatWrap" class="divide-y divide-slate-800"></div>
+
+        <div class="border-t border-slate-800 px-4 py-3.5">
+          <div class="mb-2 flex items-center justify-between">
+            <span class="text-sm font-medium text-slate-300">Active Formation</span>
+            <span id="formTag" class="font-mono text-[10px] uppercase tracking-widest text-accent-300">Infantry Phalanx</span>
+          </div>
+          <div class="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-slate-700 bg-slate-800">
+            <button data-form="inf" class="formBtn px-2 py-2.5 text-xs font-semibold transition">Infantry</button>
+            <button data-form="rng" class="formBtn px-2 py-2.5 text-xs font-semibold transition">Ranged</button>
+            <button data-form="cav" class="formBtn px-2 py-2.5 text-xs font-semibold transition">Cavalry</button>
+          </div>
+          <div class="mt-1.5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-slate-700 bg-slate-800">
+            <button data-stance="phalanx" class="defStanceBtn px-2 py-2 text-xs font-semibold transition">Phalanx</button>
+            <button data-stance="wedge" class="defStanceBtn px-2 py-2 text-xs font-semibold transition">Wedge</button>
+          </div>
+          <p id="formHint" class="mt-2.5 text-xs leading-relaxed text-slate-400"></p>
+        </div>
+
+        <div class="border-t border-slate-800 px-4 py-3.5">
+          <div class="mb-2 flex items-baseline justify-between">
+            <span class="text-sm font-medium text-slate-300">Castle Wall</span>
+            <span id="wallTag" class="font-mono text-[10px] uppercase tracking-widest text-accent-300">Wall Up · 100%</span>
+          </div>
+          <input id="slWallPct" data-wall="pct" type="range" min="0" max="100" step="1" value="100" aria-label="Wall HP percent" />
+          <div class="mt-1 grid grid-cols-3 gap-2">
+            <label class="block">
+              <span class="mb-1 block font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Wall HP %</span>
+              <input id="inWallPct" data-wall="pct" type="number" min="0" max="100" step="1" value="100"
+                class="field num w-full px-2 py-1.5 text-right text-[13px] font-semibold text-slate-100" aria-label="Wall HP percent value" />
+            </label>
+            <label class="block">
+              <span class="mb-1 block font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Wall Max HP</span>
+              <input id="inWallMax" data-wall="maxHp" type="number" min="0" step="100000" value="2000000"
+                class="field num w-full px-2 py-1.5 text-right text-[13px] font-semibold text-slate-100" aria-label="Wall max HP" />
+            </label>
+            <label class="block">
+              <span class="mb-1 block font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Traps</span>
+              <input id="inTraps" data-wall="traps" type="number" min="0" step="5000" value="200000"
+                class="field num w-full px-2 py-1.5 text-right text-[13px] font-semibold text-slate-100" aria-label="Trap count" />
+            </label>
+          </div>
+          <div class="mt-2 grid grid-cols-2 gap-2">
+            <label class="block">
+              <span class="mb-1 block font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Trap ATK</span>
+              <div class="relative">
+                <input id="inTrapAtk" data-wall="atk" type="number" min="0" max="1600" step="1" value="60.84"
+                  class="field num w-full py-1.5 pl-2 pr-5 text-right text-[13px] font-semibold text-slate-100" aria-label="Trap attack percent" />
+                <span class="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">%</span>
+              </div>
+            </label>
+            <label class="block">
+              <span class="mb-1 block font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Trap DEF</span>
+              <div class="relative">
+                <input id="inTrapDef" data-wall="def" type="number" min="0" max="1600" step="1" value="66.92"
+                  class="field num w-full py-1.5 pl-2 pr-5 text-right text-[13px] font-semibold text-slate-100" aria-label="Trap defense percent" />
+                <span class="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">%</span>
+              </div>
+            </label>
+          </div>
+          <p id="wallHint" class="mt-2 text-xs leading-relaxed text-slate-400"></p>
+        </div>
+
+        <div class="divide-y divide-slate-800 border-t border-slate-800">
+          <div class="grid grid-cols-12 items-center gap-x-3 gap-y-1 px-4 py-2.5">
+            <span class="col-span-12 text-sm font-medium text-slate-300 sm:col-span-4">Familiar Talent Damage</span>
+            <div class="col-span-7 sm:col-span-5">
+              <input id="slDefFam" data-fam="def" type="range" min="0" max="35" step="1" value="20" aria-label="Defender familiar talent damage" />
+            </div>
+            <div class="col-span-5 sm:col-span-3">
+              <div class="relative">
+                <input id="inDefFam" data-fam="def" type="number" min="0" max="35" step="1" value="20"
+                  class="field num w-full py-1.5 pl-2 pr-6 text-right text-sm font-semibold text-slate-100" aria-label="Defender familiar talent damage value" />
+                <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
+              </div>
+            </div>
+          </div>
+          <div class="grid grid-cols-12 items-center gap-x-3 gap-y-1 px-4 py-2.5">
+            <span class="col-span-12 text-sm font-medium text-slate-300 sm:col-span-4">Retreat Threshold</span>
+            <div class="col-span-7 sm:col-span-5">
+              <input id="slRetreat" data-retreat="1" type="range" min="20" max="100" step="1" value="38" aria-label="Attacker retreat threshold" />
+            </div>
+            <div class="col-span-5 sm:col-span-3">
+              <div class="relative">
+                <input id="inRetreat" data-retreat="1" type="number" min="20" max="100" step="1" value="38"
+                  class="field num w-full py-1.5 pl-2 pr-6 text-right text-sm font-semibold text-slate-100" aria-label="Attacker retreat threshold value" />
+                <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
+              </div>
+            </div>
+            <p class="col-span-12 text-xs text-slate-400">March breaks off once this share of it is dead — defender victory without a full wipe.</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 divide-x divide-slate-800 border-t border-slate-800">
+          <label class="block px-4 py-3">
+            <span class="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Infirmary Capacity</span>
+            <input id="inInfirmary" type="number" min="0" step="10000" value="300000"
+              class="field num w-full px-2.5 py-2 text-sm font-semibold text-slate-100" />
+          </label>
+          <label class="block px-4 py-3">
+            <span class="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Divine Providence %</span>
+            <input id="inDP" type="number" min="0" max="100" step="1" value="30"
+              class="field num w-full px-2.5 py-2 text-sm font-semibold text-slate-100" />
+          </label>
+        </div>
+      </section>
+
+      <!-- TROOP COMPOSITION -->
+      <section class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60">
+        <div class="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+          <div>
+            <div class="font-mono text-[10px] uppercase tracking-[0.22em] text-slate-400">02 — Garrison</div>
+            <h2 class="text-sm font-semibold text-slate-50">Troop Composition &amp; Might</h2>
+          </div>
+          <button id="btnResetTroops" class="rounded-md border border-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition hover:border-slate-600 hover:text-slate-100">Baseline</button>
+        </div>
+
+        <div id="tierWrap"></div>
+
+        <div class="grid grid-cols-2 divide-x divide-y divide-slate-800 border-t border-slate-800 sm:grid-cols-4 sm:divide-y-0">
+          <div class="px-4 py-2.5">
+            <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Total Troops</div>
+            <div id="sumCount" class="num text-sm font-semibold text-slate-100">0</div>
+          </div>
+          <div class="px-4 py-2.5">
+            <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Total Might</div>
+            <div id="sumMight" class="num text-sm font-semibold text-accent-300">0</div>
+          </div>
+          <div class="px-4 py-2.5">
+            <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Frontline</div>
+            <div id="sumFront" class="num text-sm font-semibold text-slate-100">0</div>
+          </div>
+          <div class="px-4 py-2.5">
+            <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Low-Tier Cushion</div>
+            <div id="sumCushion" class="num text-sm font-semibold text-slate-100">0%</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- LUNAR GEAR -->
+      <section class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60">
+        <div class="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+          <div>
+            <div class="font-mono text-[10px] uppercase tracking-[0.22em] text-slate-400">03 — Logistics</div>
+            <h2 class="text-sm font-semibold text-slate-50">T5 Luminous Gear &amp; Build Cost</h2>
+          </div>
+          <span class="num rounded-md border border-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-200">
+            T5 <span id="gearT5Total">300,000</span>
+          </span>
+        </div>
+        <div class="grid grid-cols-3 divide-x divide-y divide-slate-800 sm:grid-cols-6 sm:divide-y-0">
+          <div class="px-3 py-2.5">
+            <div class="font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Gear</div>
+            <div id="costGear" class="num text-sm font-semibold text-accent-300">0</div>
+          </div>
+          <div class="px-3 py-2.5">
+            <div class="font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Food</div>
+            <div id="costFood" class="num text-sm font-semibold text-slate-200">0</div>
+          </div>
+          <div class="px-3 py-2.5">
+            <div class="font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Timber</div>
+            <div id="costWood" class="num text-sm font-semibold text-slate-200">0</div>
+          </div>
+          <div class="px-3 py-2.5">
+            <div class="font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Stone</div>
+            <div id="costStone" class="num text-sm font-semibold text-slate-200">0</div>
+          </div>
+          <div class="px-3 py-2.5">
+            <div class="font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Ore</div>
+            <div id="costOre" class="num text-sm font-semibold text-slate-200">0</div>
+          </div>
+          <div class="px-3 py-2.5">
+            <div class="font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Gems</div>
+            <div id="costGems" class="num text-sm font-semibold text-slate-200">0</div>
+          </div>
+        </div>
+        <p class="border-t border-slate-800 px-4 py-2.5 text-xs leading-relaxed text-slate-400">
+          Per T5: 18,000 Food · 14,000 Timber · 6,000 Stone · 3,600 Ore · 1 Luminous Gear. Healing costs 30% of resources, gear unchanged.
+        </p>
+      </section>
+    </div>
+
+    <!-- ══════════════════════ RIGHT COLUMN ══════════════════════ -->
+    <div class="space-y-5">
+
+      <!-- ATTACKER PROFILE -->
+      <section class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60">
+        <div class="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+          <div>
+            <div class="font-mono text-[10px] uppercase tracking-[0.22em] text-rose-400/90">04 — Attacker</div>
+            <h2 class="text-sm font-semibold text-slate-50">Incoming March Profile</h2>
+          </div>
+          <span id="marchTag" class="num rounded-md border border-rose-500/40 bg-rose-500/10 px-2.5 py-1 text-xs font-semibold text-rose-300">Solo · 250,000</span>
+        </div>
+
+        <div class="px-4 py-3.5">
+          <div class="mb-2 text-sm font-medium text-slate-300">March Type</div>
+          <div class="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-slate-700 bg-slate-800">
+            <button data-march="solo" class="marchBtn px-2 py-2.5 text-xs font-semibold transition">
+              Solo March <span class="block font-mono text-[10px] font-normal opacity-70">10K – 375K</span>
+            </button>
+            <button data-march="rally" class="marchBtn px-2 py-2.5 text-xs font-semibold transition">
+              Full Rally <span class="block font-mono text-[10px] font-normal opacity-70">2.00M – 2.45M</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="border-t border-slate-800 px-4 py-3.5">
+          <div class="mb-2 text-sm font-medium text-slate-300">Presets</div>
+          <div class="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-slate-700 bg-slate-800 sm:grid-cols-3">
+            <button data-preset="mid" class="presetBtn px-3 py-2.5 text-left transition">
+              <span class="block text-xs font-semibold">Mid-Tier Solo</span>
+              <span class="block font-mono text-[10px] text-slate-400">450% · 250K</span>
+            </button>
+            <button data-preset="titan" class="presetBtn px-3 py-2.5 text-left transition">
+              <span class="block text-xs font-semibold">Maxed Titan Solo</span>
+              <span class="block font-mono text-[10px] text-slate-400">1100% · 375K</span>
+            </button>
+            <button data-preset="rally" class="presetBtn px-3 py-2.5 text-left transition">
+              <span class="block text-xs font-semibold">Modern Titan Rally</span>
+              <span class="block font-mono text-[10px] text-slate-400">1400% · 2.45M</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="divide-y divide-slate-800 border-t border-slate-800">
+          <div class="grid grid-cols-12 items-center gap-3 px-4 py-3">
+            <span class="col-span-12 text-sm font-medium text-slate-300 sm:col-span-3">March Size</span>
+            <div class="col-span-7 sm:col-span-6">
+              <input id="slAtkTotal" class="rose" type="range" min="10000" max="375000" step="5000" value="250000" aria-label="March size" />
+            </div>
+            <div class="col-span-5 sm:col-span-3">
+              <input id="inAtkTotal" type="number" min="10000" max="375000" step="5000" value="250000"
+                class="field rose num w-full px-2 py-1.5 text-right text-sm font-semibold text-rose-200" aria-label="March size value" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-12 items-center gap-3 px-4 py-3">
+            <span class="col-span-12 text-sm font-medium text-slate-300 sm:col-span-3">Attack Stats</span>
+            <div class="col-span-7 sm:col-span-6">
+              <input id="slAtkStat" class="rose" type="range" min="0" max="1600" step="25" value="450" aria-label="Attacker attack stats" />
+            </div>
+            <div class="col-span-5 sm:col-span-3">
+              <div class="relative">
+                <input id="inAtkStat" type="number" min="0" max="1600" step="25" value="450"
+                  class="field rose num w-full py-1.5 pl-2 pr-6 text-right text-sm font-semibold text-rose-200" aria-label="Attacker attack stats value" />
+                <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 divide-x divide-slate-800">
+            <label class="block px-4 py-3">
+              <span class="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">March DEF</span>
+              <div class="relative">
+                <input id="inAtkDef" type="number" min="0" max="1600" step="25" value="400"
+                  class="field rose num w-full py-2 pl-2 pr-6 text-right text-sm font-semibold text-rose-200" aria-label="Attacker defense percent" />
+                <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
+              </div>
+            </label>
+            <label class="block px-4 py-3">
+              <span class="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">March Max HP</span>
+              <div class="relative">
+                <input id="inAtkHp" type="number" min="0" max="1600" step="25" value="450"
+                  class="field rose num w-full py-2 pl-2 pr-6 text-right text-sm font-semibold text-rose-200" aria-label="Attacker max HP percent" />
+                <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
+              </div>
+            </label>
+          </div>
+
+          <div class="grid grid-cols-2 divide-x divide-slate-800">
+            <label class="block px-4 py-3">
+              <span class="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Lineup</span>
+              <select id="inAtkLineup" class="field w-full bg-slate-900 px-2 py-2 text-sm font-medium text-slate-100"></select>
+            </label>
+            <label class="block px-4 py-3">
+              <span class="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Tier Mix</span>
+              <select id="inAtkTier" class="field w-full bg-slate-900 px-2 py-2 text-sm font-medium text-slate-100"></select>
+            </label>
+          </div>
+
+          <div class="px-4 py-3">
+            <span class="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Stance</span>
+            <div class="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-slate-700 bg-slate-800">
+              <button data-atkstance="phalanx" class="atkStanceBtn px-2 py-2 text-xs font-semibold transition">Phalanx</button>
+              <button data-atkstance="wedge" class="atkStanceBtn px-2 py-2 text-xs font-semibold transition">Wedge</button>
+            </div>
+            <p class="mt-2 text-xs text-slate-400">
+              Spearhead follows the lineup, exactly as the game names it —
+              <span id="atkLineupName" class="font-semibold text-rose-300">Cavalry Phalanx</span>.
+            </p>
+          </div>
+
+          <div class="grid grid-cols-12 items-center gap-x-3 gap-y-1 px-4 py-3">
+            <span class="col-span-12 text-sm font-medium text-slate-300 sm:col-span-4">Familiar Talent Damage</span>
+            <div class="col-span-7 sm:col-span-5">
+              <input id="slAtkFam" class="rose" data-fam="atk" type="range" min="0" max="35" step="1" value="20" aria-label="Attacker familiar talent damage" />
+            </div>
+            <div class="col-span-5 sm:col-span-3">
+              <div class="relative">
+                <input id="inAtkFam" data-fam="atk" type="number" min="0" max="35" step="1" value="20"
+                  class="field rose num w-full py-1.5 pl-2 pr-6 text-right text-sm font-semibold text-rose-200" aria-label="Attacker familiar talent damage value" />
+                <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
+              </div>
+            </div>
+          </div>
+
+          <div id="atkPreview" class="grid grid-cols-3 divide-x divide-slate-800"></div>
+
+          <div id="matchup" class="px-4 py-3 text-xs font-medium leading-relaxed text-slate-300"></div>
+        </div>
+
+        <div class="border-t border-slate-800 p-4">
+          <button id="btnSim"
+            class="hidden w-full rounded-lg bg-accent-500 px-4 py-3 text-sm font-bold tracking-wide text-slate-950 transition hover:bg-accent-400 active:scale-[.995] lg:block">
+            SIMULATE BATTLE
+          </button>
+        </div>
+      </section>
+
+      <!-- RESULTS -->
+      <section id="resultsWrap" class="space-y-5"></section>
+
+      <section class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3.5">
+        <div class="font-mono text-[10px] uppercase tracking-[0.22em] text-slate-400">Engine Reference</div>
+        <p class="mt-1.5 text-xs leading-relaxed text-slate-400">
+          Counter triangle: <span class="text-slate-200">Infantry &gt; Ranged &gt; Cavalry &gt; Infantry</span>. A counter doubles damage dealt against the countered type.
+          A <span class="text-slate-200">phalanx</span> puts one squad in front and eats 72% of the incoming hit; a <span class="text-slate-200">wedge</span> fields two
+          (the anchor plus the type it counters, which is exactly what hard-counters the anchor's counter), splitting 55/45 and letting both fight at full output.
+          An attacker wedge spreads its hit wider (55% front share) and gives two spearhead types +15% damage. Inside every squad T2 absorbs, then T4, then T5.
+          Morale drains from lead-squad attrition and layer collapses, throttling defender output down to 35%. Familiar talents fire every 3rd round.
+          Defender wins by wiping the march — or by killing enough of it to trip the retreat threshold before morale hits zero.
+        </p>
+      </section>
+    </div>
+  </div>
+  <footer class="mx-auto mt-8 max-w-[1500px] border-t border-slate-800 px-4 py-6 text-xs text-slate-400">
+    <p>
+      Free, no signup, no paywall. If this saved your troops,
+      <a class="font-semibold text-accent-300 underline-offset-2 hover:underline"
+         href="https://ko-fi.com/opulince" rel="noopener" target="_blank">buy me a coffee</a>.
+    </p>
+    <p class="mt-2">
+      <a class="hover:text-slate-200" href="/about">About &amp; how it's calibrated</a> ·
+      <a class="hover:text-slate-200" href="/privacy">Privacy</a>
+    </p>
+  </footer>
+</main>
+
+<div class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-800 bg-slate-950/95 p-3 backdrop-blur-xl lg:hidden" style="padding-bottom:calc(0.75rem + env(safe-area-inset-bottom));">
+  <button id="btnSimMobile" class="w-full rounded-lg bg-accent-500 px-4 py-3 text-sm font-bold tracking-wide text-slate-950 transition active:scale-[.995]">
+    SIMULATE BATTLE
+  </button>
+</div>
+
+<script type="module" src="/assets/ui.js"></script>
+</body>
+</html>

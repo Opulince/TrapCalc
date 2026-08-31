@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>About — Lords Mobile Trap Simulator</title>
+<meta name="description" content="How the Lords Mobile trap simulator is calibrated against real battle reports, and which parts of the model are still estimates." />
+<link rel="canonical" href="https://lords-trap-sim.pages.dev/about" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lords-trap-sim.pages.dev/about" />
+<meta property="og:title" content="About the Lords Mobile Trap Simulator" />
+<meta property="og:description" content="How the simulator is calibrated against real battle reports, and which parts of the model are still estimates." />
+<meta property="og:image" content="https://lords-trap-sim.pages.dev/assets/og.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body class="min-h-screen font-sans text-slate-200 antialiased">
+  <main class="mx-auto max-w-3xl px-4 py-10">
+    <h1 class="text-xl font-semibold text-slate-50">About this simulator</h1>
+    <p class="mt-4 text-sm leading-relaxed text-slate-300">
+      This is a combat simulator for Lords Mobile trap accounts. It models a solo march or a full
+      rally hitting your garrison, and reports which troops die, which survive, what your wall and
+      traps absorbed, and where your casualties land between the infirmary and the sanctuary.
+    </p>
+    <h2 class="mt-8 text-base font-semibold text-slate-50">How it's calibrated</h2>
+    <p class="mt-3 text-sm leading-relaxed text-slate-300">
+      The engine is fitted against real battle reports, not guesswork. One report established that
+      casualties climb the tier ladder globally — every T4 squad took zero losses while T1 was wiped
+      and T2 bled 23% — and the engine was rewritten to match. It currently reproduces that report's
+      total losses to within 2% and its tier distribution to within half a percentage point.
+    </p>
+    <h2 class="mt-8 text-base font-semibold text-slate-50">What is still guesswork</h2>
+    <p class="mt-3 text-sm leading-relaxed text-slate-300">
+      Base per-tier troop stats, the phalanx and wedge damage split, the wall HP conversion and the
+      trap base stats are estimates. Army morale is a modelling device, not a real game mechanic.
+      Treat relative comparisons as reliable and absolute numbers as indicative.
+    </p>
+    <p class="mt-8 text-sm text-slate-300">
+      Free, no signup, no paywall. If it saved your troops,
+      <a class="font-semibold text-accent-300 underline-offset-2 hover:underline"
+         href="https://ko-fi.com/opulince" rel="noopener" target="_blank">buy me a coffee</a>.
+    </p>
+    <p class="mt-6 text-xs text-slate-400">
+      <a class="hover:text-slate-200" href="/">← Back to the simulator</a> ·
+      <a class="hover:text-slate-200" href="/privacy">Privacy</a>
+    </p>
+  </main>
+</body>
+</html>
