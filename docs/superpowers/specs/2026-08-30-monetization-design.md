@@ -192,8 +192,8 @@ Each phase is a separate implementation plan.
 
 - Whether to bother with a custom domain at all, or ship on a free `*.pages.dev` subdomain.
 - Whether to run Google's CMP or restrict to non-personalized ads.
-- Whether the existing `lmtrapsim2.html` is a dead variant that should be deleted before the
-  split. It appears to be an earlier copy; confirm before publishing.
+- ~~Whether the existing `lmtrapsim2.html` is a dead variant that should be deleted before the
+  split.~~ Resolved: verified stale and deleted (commit `d545d8c`).
 
 ## Out of scope (YAGNI)
 
