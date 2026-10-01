@@ -1,12 +1,16 @@
 // Pure, DOM-free Lords Mobile combat engine. runSimulation(cfg) takes { troops, def, atk }
 // and never touches the page or mutates its input, so it runs identically in the browser
 // and under `node --test`.
+//
+// What the model rests on — and how sure we are — is kept in calibration-notes.md.
 
-// Lowest tier first — casualties sponge upward. Confirmed by report 2026-08-28:
-// T1 Cataphract wiped 100%, T2 Reptilian Rider lost 23%, every T4 squad lost 0.
 export const TIER_KEYS = ['t1', 't2', 't3', 't4', 't5'];
-export const TYPE_KEYS = ['inf', 'rng', 'cav'];
+// The three combat types form the counter triangle; siege is the fourth troop type.
+export const COMBAT_KEYS = ['inf', 'rng', 'cav'];
+export const TYPE_KEYS = ['inf', 'rng', 'cav', 'sie'];
 
+// Base per-troop stats are engine units, not game numbers. Might is the game's (wiki: Might;
+// confirmed to the troop by report 3's might totals).
 export const TIER = {
   t1: { key:'t1', name:'T1', role:'Chaff Layer',   might:2,  hp:10,  atk:10,  max:30000000, step:10000, base:0       },
   t2: { key:'t2', name:'T2', role:'Cushion Layer', might:8,  hp:20,  atk:20,  max:30000000, step:10000, base:1500000 },
@@ -15,14 +19,24 @@ export const TIER = {
   t5: { key:'t5', name:'T5', role:'Lunar Layer',   might:48, hp:160, atk:160, max:600000,  step:2500,  base:100000  }
 };
 
-// Counter triangle: Infantry > Ranged > Cavalry > Infantry
+// Counter triangle: Infantry > Ranged > Cavalry > Infantry (player-confirmed, wiki).
+// Siege counters TRAPS (wiki: Trap), not troops. Its type multipliers are placeholders.
 export const TYPE = {
   inf: { key:'inf', name:'Infantry', short:'INF', hp:1.30, atk:0.80, def:1.35, beats:'rng' },
   rng: { key:'rng', name:'Ranged',   short:'RNG', hp:0.80, atk:1.40, def:0.80, beats:'cav' },
-  cav: { key:'cav', name:'Cavalry',  short:'CAV', hp:1.00, atk:1.10, def:1.00, beats:'inf' }
+  cav: { key:'cav', name:'Cavalry',  short:'CAV', hp:1.00, atk:1.10, def:1.00, beats:'inf' },
+  sie: { key:'sie', name:'Siege',    short:'SIE', hp:1.00, atk:1.00, def:1.00, beats:null  }
 };
 export const COUNTERED_BY = {};
-TYPE_KEYS.forEach((k) => { COUNTERED_BY[TYPE[k].beats] = k; });
+COMBAT_KEYS.forEach((k) => { COUNTERED_BY[TYPE[k].beats] = k; });
+
+// Trap types (wiki: Trap): each counters one troop type, and every trap is countered by siege.
+export const TRAP_KEYS = ['spk', 'twr', 'log'];
+export const TRAP_TYPE = {
+  spk: { key:'spk', name:'Spikes',       beats:'cav' },
+  twr: { key:'twr', name:'Towers',       beats:'rng' },
+  log: { key:'log', name:'Rolling Logs', beats:'inf' }
+};
 
 export const MARCH = {
   solo:  { key:'solo',  name:'Solo',  min:10000,   max:375000,  step:5000,  base:250000  },
@@ -35,7 +49,7 @@ export const PRESETS = {
   rally: { march:'rally', size:2450000, stat:1400, def:1250, hp:1400, tier:'t5h'  }
 };
 
-// parts are read in TYPE_KEYS order: infantry - ranged - cavalry
+// Composition shortcuts used to FILL the attacker's squad grid. parts: inf - rng - cav.
 export const LINEUPS = {
   inf:      { label:'Full Infantry', parts:[1, 0, 0] },
   rng:      { label:'Full Ranged',   parts:[0, 1, 0] },
@@ -68,17 +82,16 @@ export const TIER_MIX = {
 //    traps pull damage off the wall and lengthen the wall fight.
 //  · A damaged wall loses HP more slowly than a full one — a CONSEQUENCE of the split
 //    above (less wall HP = smaller share of the hit), not a separate multiplier.
-// A trap is roughly a tanky T4-grade defender. Game Wall HP is quoted in its own units,
-// so WALL_HP_SCALE converts it into the same effective-HP space the troops fight in.
-// Both are estimates pending calibration against wall-up / wall-down report pairs.
+// Game Wall HP is small (12,625 at the player's castle level, from the in-game table), so
+// WALL_HP_SCALE converts it into the engine's effective-HP space. It is re-expressed so the
+// default wall behaves as before; TRAP stats and the scale are still uncalibrated.
 export const TRAP = { hp:150, atk:120 };        // per-trap base, estimated
-const WALL_HP_SCALE = 80;                // game Wall HP -> engine EHP
+const WALL_HP_SCALE = 12673;            // game Wall HP -> engine EHP (was 80 x a 2,000,000 default)
 const TRAP_VOLLEY = 1.00;                // pre-battle free strike, in rounds of trap output
 
 // Recovery rules (Lords Mobile wiki: Infirmary, Sanctuary; Guides by T):
 //  · Attackers fighting outside their turf: 60% of losses are wounded (highest tiers first,
-//    while their infirmary has room), 40% die. Report 2026-08-28 matches exactly:
-//    24,139 wounded / 16,093 dead of 40,232 = 60.0%.
+//    while their infirmary has room), 40% die. Reports 1 and 3 match to the troop.
 //  · Defenders in their turf: every casualty is wounded while the infirmary has room.
 //  · Overflow beyond the infirmary dies, except 80% (when defending) goes to the Sanctuary
 //    if it has space. Divine Providence is a free-revive 10% slice of the dead.
@@ -90,38 +103,57 @@ export const DIVINE_PROVIDENCE_SHARE = 0.10;
 export const T5_COST = { food:18000, wood:14000, stone:6000, ore:3600, gear:1, gemsPerGear:12 };
 export const HEAL_RATIO = 0.30;
 
-// A wedge fields two lead squads: the anchor plus the type it counters — which is
-// exactly the type that hard-counters whatever counters the anchor.
+// Formation = lead type + stance, chosen independently of what the march contains (in-game
+// you can send any troops in any phalanx or wedge). A wedge puts two types in front: the
+// anchor plus the type it counters (report 3: a Ranged Wedge lost only ranged and cavalry).
 export const STANCE = {
-  phalanx: { label:'Phalanx', frontShare:0.72, weights:[1.00] },
-  wedge:   { label:'Wedge',   frontShare:0.55, weights:[0.55, 0.45] }
+  phalanx: { label:'Phalanx' },
+  wedge:   { label:'Wedge' }
 };
 export const leadTypes = (type, stance) => (stance === 'wedge' ? [type, TYPE[type].beats] : [type]);
 
-// Real battles run a bounded engagement and end with BOTH sides holding survivors
-// (report 08/28/26: attacker kept 84%, defender kept 22%) — so rounds are fixed,
-// not fought to a wipe, and the caps that forced near-even exchanges are gone.
-const BATTLE_ROUNDS     = 15;
-const DAMAGE_SCALE      = 0.05;
-const BITE_DEF          = 0.60;   // safety rail only: max share of defender EHP per round
-const BITE_ATK          = 0.60;   // safety rail only: max share of attacker EHP per round
-const LEAD_BONUS        = 0.15;   // spearhead squads strike harder
-const FAMILIAR_PERIOD   = 3;      // familiar talent fires every N rounds
-const SUPPORT_FACTOR    = 0.45;
-const COUNTER_BONUS     = 1.00;   // +100% => 2x
-export const STAT_CAP          = 1600;
+// Battle lines, front to back. Reports 2 and 3 show losses ONLY in the front type(s) while
+// the front still stands; siege sits at the very back, which is why a few thousand siege can
+// keep a march from being wiped (and its leader from being captured).
+export function battleLines(formation, stance) {
+  const front = leadTypes(formation, stance);
+  return [front, COMBAT_KEYS.filter((y) => front.indexOf(y) < 0), ['sie']];
+}
 
-const MORALE = {
-  frontWeight: 0.75,   // share of drain from phalanx attrition
-  armyWeight:  0.25,   // share of drain from overall attrition
-  rate:        1.00,   // global drain multiplier
-  breakShock:  7,      // flat drain when a phalanx tier layer collapses
-  counterPen:  1.20,   // extra drain while being countered
-  minOutput:   0.35    // defender damage floor at 0 morale
+export const STAT_CAP = 1600;
+const BATTLE_ROUNDS   = 15;
+const FAMILIAR_PERIOD = 3;      // familiar talent fires every N rounds
+const COUNTER_BONUS   = 1.00;   // +100% => 2x
+
+// Tunable model constants, fitted against real battle reports (see calibration-notes.md).
+// Exported so the calibration script can sweep them; the app never changes them.
+// Fitted 2026-10-01 to reports 2 + 3 (attacker stats free per report): total squad-level
+// error 0.35, down from 0.64 for the best fit with the old ladder-style values.
+export const PARAMS = {
+  damageScale:   0.125,  // converts ATK into damage per round
+  bite:          0.60,   // safety rail: max share of the target's starting EHP per round
+  support:       0.70,   // output of squads outside the front line
+  // Inside a line: share of each hit spread over every troop equally (lower HP dies faster);
+  // the rest goes lowest tier first. Report 2 looks strict (T4 untouched), report 3 is mixed
+  // (T4 cav 61% dead while T2 cav was still 82%) — 0.9 is the best compromise, not a fit to both.
+  spread:        0.90,
+  // Does a hit that finishes off one line carry on into the line behind it in the same
+  // round? Player experience says no: a few thousand T1 siege at the back can stop a march
+  // from being wiped (and its leader captured). Fits the reports equally well either way.
+  lineSpill:     false,
+  morale: {
+    frontWeight: 0.75,   // share of drain from front-line attrition
+    armyWeight:  0.25,   // share of drain from overall attrition
+    rate:        0.50,   // global drain multiplier
+    breakShock:  7,      // flat drain when a front-line tier squad is wiped out
+    counterPen:  1.20,   // extra drain while the front is being countered
+    minOutput:   0.35    // damage floor at 0 morale
+  }
 };
 
 /* ═══════════════════════════ HELPERS ═══════════════════════════ */
 export const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const num = (v) => (Number.isFinite(v) ? v : 0);
 
 // HP% and DEF% both multiply survivability, the way players reason about them
 export function unitEhp(tk, yk, hpPct, defPct) {
@@ -137,190 +169,237 @@ export const attackerTierShare = (cfg) => (TIER_MIX[cfg.atk.tierMix] || TIER_MIX
 export function attackerTypeShare(cfg) {
   const L = LINEUPS[cfg.atk.lineup] || LINEUPS.cav;
   const sum = L.parts.reduce((a, b) => a + b, 0) || 1;
-  const o = {};
-  TYPE_KEYS.forEach((yk, i) => { o[yk] = L.parts[i] / sum; });
+  const o = { sie:0 };
+  COMBAT_KEYS.forEach((yk, i) => { o[yk] = L.parts[i] / sum; });
   return o;
 }
 
-// A march's lead type IS its composition's dominant type — "Ranged Wedge" is a ranged
-// march. Derived here rather than in the UI so the engine has no hidden UI dependency.
-export function dominantType(cfg) {
-  const share = attackerTypeShare(cfg);
-  return TYPE_KEYS.reduce((best, yk) => (share[yk] > share[best] ? yk : best), TYPE_KEYS[0]);
+// An empty tier x type grid.
+export const emptyTroops = () => {
+  const o = {};
+  TIER_KEYS.forEach((tk) => { o[tk] = { inf:0, rng:0, cav:0, sie:0 }; });
+  return o;
+};
+
+// Fill a squad grid from a total + composition shortcut + tier mix (the presets use this).
+export function fillTroops(total, lineupKey, tierMixKey) {
+  const o = emptyTroops();
+  const L = LINEUPS[lineupKey] || LINEUPS.cav;
+  const sum = L.parts.reduce((a, b) => a + b, 0) || 1;
+  const mix = (TIER_MIX[tierMixKey] || TIER_MIX.t4).mix;
+  Object.keys(mix).forEach((tk) => COMBAT_KEYS.forEach((yk, i) => {
+    o[tk][yk] = Math.round(total * mix[tk] * (L.parts[i] / sum));
+  }));
+  return o;
+}
+
+// The march as a tier x type grid. An explicit atk.troops wins; older configs that only give
+// total + lineup + tierMix are still accepted.
+export function attackerTroops(cfg) {
+  const A = cfg.atk;
+  if (A.troops) {
+    const o = emptyTroops();
+    TIER_KEYS.forEach((tk) => TYPE_KEYS.forEach((yk) => { o[tk][yk] = Math.max(0, num((A.troops[tk] || {})[yk])); }));
+    return o;
+  }
+  const o = emptyTroops(), tierShare = attackerTierShare(cfg), typeShare = attackerTypeShare(cfg);
+  Object.keys(tierShare).forEach((tk) => COMBAT_KEYS.forEach((yk) => {
+    o[tk][yk] = num(A.total) * tierShare[tk] * typeShare[yk];
+  }));
+  return o;
+}
+
+// Most common combat type in a grid — only a fallback when no formation is given.
+export function dominantType(troops) {
+  const n = (yk) => TIER_KEYS.reduce((s, tk) => s + num((troops[tk] || {})[yk]), 0);
+  return COMBAT_KEYS.reduce((best, yk) => (n(yk) > n(best) ? yk : best), COMBAT_KEYS[0]);
+}
+
+export function attackerFormation(cfg) {
+  return COMBAT_KEYS.indexOf(cfg.atk.formation) >= 0 ? cfg.atk.formation : dominantType(attackerTroops(cfg));
 }
 
 // effective bonus for a troop type = its own line + the army-wide line
-export const effStat = (cfg, type, col) => cfg.def.stats[type][col] + cfg.def.stats.army[col];
+export const effStat = (cfg, type, col) => num((cfg.def.stats[type] || {})[col]) + num(cfg.def.stats.army[col]);
+
+// Trap counts by type. A plain number (older configs) is split evenly across the three.
+export function trapCounts(wall) {
+  const t = wall.traps;
+  const o = {};
+  if (typeof t === 'number') TRAP_KEYS.forEach((k) => { o[k] = Math.max(0, t) / TRAP_KEYS.length; });
+  else TRAP_KEYS.forEach((k) => { o[k] = Math.max(0, num((t || {})[k])); });
+  return o;
+}
+
+/* ═══════════════════════════ ARMY ═══════════════════════════ */
+const EPS = 1e-9;
+
+function buildArmy(troops, statOf, formation, stance) {
+  const cells = [];
+  TIER_KEYS.forEach((tk) => TYPE_KEYS.forEach((yk) => {
+    const c = Math.max(0, num((troops[tk] || {})[yk]));
+    const s = statOf(yk);
+    cells.push({ tier:tk, type:yk, start:c, count:c, ehp:unitEhp(tk, yk, s.hp, s.def), atk:unitAtk(tk, yk, s.atk) });
+  }));
+  const army = { cells, lines: battleLines(formation, stance) };
+  army.alive = () => cells.reduce((s, u) => s + u.count, 0);
+  army.aliveOf = (types) => cells.reduce((s, u) => s + (types.indexOf(u.type) >= 0 ? u.count : 0), 0);
+  army.ehp = () => cells.reduce((s, u) => s + u.count * u.ehp, 0);
+  // the line currently taking hits: the first one with anyone left in it
+  army.currentLine = () => army.lines.find((types) => army.aliveOf(types) > 0.5) || army.lines[0];
+  army.start = army.alive();
+  // The front for output and morale: the formation's front, or — if the march/garrison owns
+  // none of it — the first line that actually has troops.
+  army.front = army.lines.find((types) => army.aliveOf(types) > 0.5) || army.lines[0];
+  army.frontStart = army.aliveOf(army.front);
+  return army;
+}
+
+// Count share of each type in the line currently taking hits.
+function lineShares(army) {
+  const types = army.currentLine();
+  const n = army.aliveOf(types);
+  const o = { inf:0, rng:0, cav:0, sie:0 };
+  if (n > 0) army.cells.forEach((u) => { if (types.indexOf(u.type) >= 0) o[u.type] += u.count / n; });
+  return o;
+}
+
+// Damage into ONE line. Part of it is spread over every troop equally (so lower-HP tiers die
+// faster but higher tiers bleed too); the rest goes lowest tier first, split by EHP within a
+// tier. Returns whatever overkill the line could not absorb.
+function hitLine(cells, dmg, spread) {
+  const alloc = new Map();
+  const n = cells.reduce((s, u) => s + u.count, 0);
+  cells.forEach((u) => alloc.set(u, n > 0 ? dmg * spread * (u.count / n) : 0));
+  let rest = dmg * (1 - spread);
+  for (let i = 0; i < TIER_KEYS.length && rest > EPS; i++) {
+    const tc = cells.filter((u) => u.tier === TIER_KEYS[i]);
+    if (!tc.length) continue;
+    const room = (u) => Math.max(0, u.count * u.ehp - alloc.get(u));
+    const cap = tc.reduce((s, u) => s + room(u), 0);
+    if (cap <= 0) continue;
+    const take = Math.min(rest, cap);
+    tc.forEach((u) => alloc.set(u, alloc.get(u) + take * (room(u) / cap)));
+    rest -= take;
+  }
+  let over = rest;
+  cells.forEach((u) => {
+    const d = alloc.get(u), c = u.count * u.ehp;
+    if (d >= c - EPS) { over += Math.max(0, d - c); u.count = 0; } else { u.count -= d / u.ehp; }
+  });
+  return over;
+}
+
+// Damage into an army, line by line: the next line is only reached once the one in front
+// of it is gone — and, unless PARAMS.lineSpill, not until the next round. Returns the damage
+// left unspent.
+function applyDamage(army, dmg, spread) {
+  for (const types of army.lines) {
+    const cellsOf = () => army.cells.filter((u) => types.indexOf(u.type) >= 0 && u.count > 0);
+    if (!cellsOf().length) continue;               // this line is already gone
+    let guard = 0;
+    while (dmg > EPS && guard++ < 50 && cellsOf().length) dmg = hitLine(cellsOf(), dmg, spread);
+    if (dmg <= EPS || !PARAMS.lineSpill) return Math.max(0, dmg);
+  }
+  return dmg;
+}
+
+// Raw output of an army against a target line, before scaling. Front squads fight at full
+// output, everyone else at PARAMS.support; a counter doubles damage against the share of
+// the target line it counters.
+function armyOutput(army, targetShares) {
+  let out = 0;
+  army.cells.forEach((u) => {
+    if (u.count <= 0) return;
+    const beats = TYPE[u.type].beats;
+    const mult = 1 + COUNTER_BONUS * (beats ? targetShares[beats] : 0);
+    const support = army.front.indexOf(u.type) >= 0 ? 1 : PARAMS.support;
+    out += u.count * u.atk * support * mult;
+  });
+  return out;
+}
+
+// Same-formula morale for both sides (in-game, both armies have morale and retreat at 0%).
+function makeMorale(army) {
+  const M = PARAMS.morale;
+  const collapsed = {};
+  const m = { value:100 };
+  m.output = () => M.minOutput + (1 - M.minOutput) * (m.value / 100);
+  // frontBefore/aliveBefore are counts at the start of the round; enemyShares is the
+  // composition of the line attacking this army's front.
+  m.drain = (frontBefore, aliveBefore, enemyShares) => {
+    const frontLost = frontBefore - army.aliveOf(army.front);
+    const armyLost = aliveBefore - army.alive();
+    let d = 100 * ((army.frontStart > 0 ? frontLost / army.frontStart : 0) * M.frontWeight +
+                   (army.start > 0 ? armyLost / army.start : 0) * M.armyWeight) * M.rate;
+    army.cells.forEach((u, i) => {
+      if (army.front.indexOf(u.type) >= 0 && !collapsed[i] && u.start > 0 && u.count <= 0) { collapsed[i] = true; d += M.breakShock; }
+    });
+    // how much of the front is being hit by its counter
+    const fn = army.aliveOf(army.front) || 1;
+    let pressure = 0;
+    army.cells.forEach((u) => {
+      if (army.front.indexOf(u.type) >= 0 && u.count > 0 && COUNTERED_BY[u.type]) pressure += (u.count / fn) * (enemyShares[COUNTERED_BY[u.type]] || 0);
+    });
+    d *= 1 + (M.counterPen - 1) * pressure;
+    m.value = Math.max(0, m.value - d);
+  };
+  return m;
+}
 
 /* ═══════════════════════════ ENGINE ═══════════════════════════ */
 export function runSimulation(cfg) {
   const S = cfg;
-  // Never write through to the caller's config — the UI reuses one object across runs.
-  const troops = structuredClone(cfg.troops);
+  const P = PARAMS;
 
-  const def = {};
-  TYPE_KEYS.forEach((yk) => {
-    def[yk] = {};
-    TIER_KEYS.forEach((tk) => {
-      const c = troops[tk][yk];
-      def[yk][tk] = { tier:tk, type:yk, start:c, count:c,
-                      ehp:unitEhp(tk, yk, effStat(cfg, yk, 'hp'), effStat(cfg, yk, 'def')),
-                      atk:unitAtk(tk, yk, effStat(cfg, yk, 'atk')) };
-    });
-  });
+  const defFormation = COMBAT_KEYS.indexOf(S.def.formation) >= 0 ? S.def.formation : 'inf';
+  const defStanceKey = STANCE[S.def.stance] ? S.def.stance : 'phalanx';
+  const atkFormation = attackerFormation(cfg);
+  const atkStanceKey = STANCE[S.atk.stance] ? S.atk.stance : 'phalanx';
 
-  const tierShare = attackerTierShare(cfg), typeShare = attackerTypeShare(cfg);
-  const atkUnits = [];
-  Object.keys(tierShare).forEach((tk) => {
-    TYPE_KEYS.forEach((yk) => {
-      const c = S.atk.total * tierShare[tk] * typeShare[yk];
-      if (c <= 0) return;
-      atkUnits.push({ tier:tk, type:yk, start:c, count:c,
-                      ehp:unitEhp(tk, yk, S.atk.hp, S.atk.def), atk:unitAtk(tk, yk, S.atk.stat) });
-    });
-  });
+  // structuredClone inside: never write through to the caller's config
+  const D = buildArmy(structuredClone(S.troops), (yk) => ({
+    atk:effStat(cfg, yk, 'atk'), def:effStat(cfg, yk, 'def'), hp:effStat(cfg, yk, 'hp') }), defFormation, defStanceKey);
+  const A = buildArmy(attackerTroops(cfg), () => ({ atk:num(S.atk.stat), def:num(S.atk.def), hp:num(S.atk.hp) }),
+    atkFormation, atkStanceKey);
 
-  const typeEhp   = (yk) => TIER_KEYS.reduce((s, tk) => s + def[yk][tk].count * def[yk][tk].ehp, 0);
-  const typeAlive = (yk) => TIER_KEYS.reduce((s, tk) => s + def[yk][tk].count, 0);
-  const defAlive  = () => TYPE_KEYS.reduce((s, yk) => s + typeAlive(yk), 0);
-  const atkAlive  = () => atkUnits.reduce((s, u) => s + u.count, 0);
-  const atkEhpNow = () => atkUnits.reduce((s, u) => s + u.count * u.ehp, 0);
-
-
-  // Casualties climb the tier ladder GLOBALLY, not per type. Report 2026-08-28 proves it:
-  // every T4 squad — infantry, ranged and cavalry alike — took 0 losses while T1 was wiped
-  // and T2 bled 23%. So the lowest surviving tier of the whole army absorbs first; only when
-  // it is gone does damage reach the tier above. Within a tier, the lead squads eat frontShare.
-  // fronts: [{type, weight}] — one entry for a phalanx, two for a wedge
-  function damageDefender(dmg, fronts, frontShare) {
-    const cellEhp = (yk, tk) => def[yk][tk].count * def[yk][tk].ehp;
-
-    for (let i = 0; i < TIER_KEYS.length && dmg > 1e-9; i++) {
-      const tk = TIER_KEYS[i];
-      const alive = TYPE_KEYS.filter((yk) => def[yk][tk].count > 0);
-      if (!alive.length) continue;
-
-      const cap = alive.reduce((s, yk) => s + cellEhp(yk, tk), 0);
-      const take = Math.min(dmg, cap);
-      dmg -= take;
-
-      const frontHere = fronts.filter((fr) => alive.indexOf(fr.type) >= 0);
-      const fSum = frontHere.reduce((s, fr) => s + fr.weight, 0) || 1;
-      const others = alive.filter((yk) => !frontHere.some((fr) => fr.type === yk));
-      const oEhp = others.reduce((s, yk) => s + cellEhp(yk, tk), 0);
-
-      const share = {};
-      alive.forEach((yk) => { share[yk] = 0; });
-      if (frontHere.length && others.length) {
-        frontHere.forEach((fr) => { share[fr.type] += take * frontShare * (fr.weight / fSum); });
-        others.forEach((yk) => { share[yk] += oEhp > 0 ? take * (1 - frontShare) * (cellEhp(yk, tk) / oEhp) : 0; });
-      } else if (frontHere.length) {
-        frontHere.forEach((fr) => { share[fr.type] += take * (fr.weight / fSum); });
-      } else {
-        others.forEach((yk) => { share[yk] += oEhp > 0 ? take * (cellEhp(yk, tk) / oEhp) : 0; });
-      }
-
-      // apply, gathering any overkill to spread across what still stands in this tier
-      let over = 0;
-      alive.forEach((yk) => {
-        const u = def[yk][tk], c = cellEhp(yk, tk), d = share[yk];
-        if (d >= c) { over += d - c; u.count = 0; } else { u.count -= d / u.ehp; }
-      });
-      let guard = 0;
-      while (over > 1e-9 && guard++ < 4) {
-        const rem = TYPE_KEYS.filter((yk) => def[yk][tk].count > 0);
-        if (!rem.length) break;
-        const tot = rem.reduce((s, yk) => s + cellEhp(yk, tk), 0);
-        const chunk = Math.min(over, tot);
-        over -= chunk;
-        let next = 0;
-        rem.forEach((yk) => {
-          const u = def[yk][tk], c = cellEhp(yk, tk), d = chunk * (cellEhp(yk, tk) / tot);
-          if (d >= c) { next += d - c; u.count = 0; } else { u.count -= d / u.ehp; }
-        });
-        over += next;
-      }
-      dmg += over;  // whatever this tier could not swallow climbs to the next
-    }
-  }
-
-  // The march climbs the same global tier ladder as the garrison: its lowest surviving
-  // tier absorbs first, so a 60/40 T5/T4 march loses every T4 before a single T5 falls.
-  function damageAttacker(dmg) {
-    for (let i = 0; i < TIER_KEYS.length && dmg > 1e-9; i++) {
-      const tk = TIER_KEYS[i];
-      let guard = 0;
-      while (dmg > 1e-9 && guard++ < 4) {
-        const alive = atkUnits.filter((u) => u.tier === tk && u.count > 0);
-        if (!alive.length) break;
-        const tot = alive.reduce((s, u) => s + u.count * u.ehp, 0);
-        if (tot <= 0) break;
-        const chunk = Math.min(dmg, tot);
-        dmg -= chunk;
-        alive.forEach((u) => {
-          u.count = Math.max(0, u.count - (chunk * ((u.count * u.ehp) / tot)) / u.ehp);
-        });
-      }
-    }
-  }
-
-  const formation = S.def.formation;
-  const defStance = STANCE[S.def.stance] || STANCE.phalanx;
-  const atkStance = STANCE[S.atk.stance] || STANCE.phalanx;
-  const defLeads = leadTypes(formation, S.def.stance);
-  const atkLeads = leadTypes(dominantType(cfg), S.atk.stance);
-  // an attacker wedge spreads its hit wider, so less of it lands on one squad
-  const frontShare = atkStance.frontShare;
-  const isAtkLead = {};
-  atkLeads.forEach((yk) => { isAtkLead[yk] = true; });
-
-  // One definition of "the front", used for damage routing, output AND morale: the live
-  // lead squads, or — if the chosen formation type is empty — every squad still standing.
-  // (Before, three diverging notions let an empty formation drop the whole army to support
-  // output while morale tracked a different set of squads.)
-  function liveFronts() {
-    const leads = defLeads.map((yk, i) => ({ type:yk, weight:defStance.weights[i] || 0 }))
-                          .filter((fr) => typeAlive(fr.type) > 0);
-    if (leads.length) return leads;
-    return TYPE_KEYS.filter((yk) => typeAlive(yk) > 0).map((yk) => ({ type:yk, weight:1 }));
-  }
-  const activeLeads = liveFronts().map((fr) => fr.type);
-  const frontOf = () => activeLeads.reduce((s, yk) => s + typeAlive(yk), 0);
-  const frontStart = frontOf() || 1;
-  const armyStart = defAlive() || 1;
-  const atkStartTotal = atkUnits.reduce((s, u) => s + u.start, 0) || 1;
-  const retreatAt = clamp(S.def.retreat, 1, 100) / 100;
+  const defMorale = makeMorale(D), atkMorale = makeMorale(A);
   // engagement throughput: neither side can chew through a whole army in one exchange
-  const defBite = TYPE_KEYS.reduce((s, yk) => s + typeEhp(yk), 0) * BITE_DEF;
-  const atkBite = atkEhpNow() * BITE_ATK;
-  const collapsed = {};
+  const defBite = D.ehp() * P.bite;
+  const atkBite = A.ehp() * P.bite;
+
   // ── wall state ──────────────────────────────────────────────────────────
   const W = S.def.wall;
-  const wallMaxHp = Math.max(0, W.maxHp);
-  let wallHp = wallMaxHp * WALL_HP_SCALE * clamp(W.pct, 0, 100) / 100;
-  const wallStartHp = wallHp;
+  const wallMaxHp = Math.max(0, num(W.maxHp));
   const wallMaxEhp = wallMaxHp * WALL_HP_SCALE;
-  const trapStart = Math.max(0, W.traps);
-  let trapCount = trapStart;
-  // Trap DEF is applied exactly once — as mitigation where the hit lands (below). It used to
-  // also inflate trap HP, so traps got their DEF twice.
+  let wallHp = wallMaxEhp * clamp(num(W.pct), 0, 100) / 100;
+  const wallStartHp = wallHp;
+  const trapStartBy = trapCounts(W);
+  const traps = Object.assign({}, trapStartBy);
+  const trapTotal = () => TRAP_KEYS.reduce((s, k) => s + traps[k], 0);
+  const trapStart = trapTotal();
+  const trapDefMult = 1 + num(W.def) / 100;
   const trapEhpEach = TRAP.hp;
-  const trapOutput = () => trapCount * TRAP.atk * (1 + W.atk / 100) * DAMAGE_SCALE;
+  // each trap type hits its counter type twice as hard, weighted by the line it is hitting
+  const trapOutput = () => {
+    const sh = lineShares(A);
+    return TRAP_KEYS.reduce((s, k) => s + traps[k] * TRAP.atk * (1 + num(W.atk) / 100) *
+      (1 + COUNTER_BONUS * (sh[TRAP_TYPE[k].beats] || 0)), 0) * P.damageScale;
+  };
   const wallStood = wallHp > 0.5;
-  // wallKills = every attacker killed while the wall stood; trapKills = the part the traps
-  // did. The garrison also fires during the wall phase, so the two are not the same thing.
+  // wallKills = every attacker killed while the wall stood; trapKills = the part the traps did
   let wallRounds = 0, wallKills = 0, trapKills = 0, trapVolleyKills = 0;
 
   // Traps get the first hit in, before the armies ever trade damage.
-  if (wallStood && trapCount > 0) {
-    const before = atkAlive();
-    damageAttacker(trapOutput() * TRAP_VOLLEY);
-    trapVolleyKills = before - atkAlive();
+  if (wallStood && trapStart > 0) {
+    const before = A.alive();
+    applyDamage(A, trapOutput() * TRAP_VOLLEY, P.spread);
+    trapVolleyKills = before - A.alive();
     wallKills += trapVolleyKills;
     trapKills += trapVolleyKills;
   }
 
-  let morale = 100, round = 0, outcome = null, lossReason = null, burstRounds = 0;
+  let round = 0, outcome = null, lossReason = null, burstRounds = 0;
   const log = [];
 
   while (round < BATTLE_ROUNDS) {
@@ -328,124 +407,95 @@ export function runSimulation(cfg) {
     const burst = round % FAMILIAR_PERIOD === 0;
     if (burst) burstRounds++;
 
-    // live lead squads and their share of the incoming hit
-    let fronts = liveFronts();
-    if (!fronts.length) fronts = [{ type:formation, weight:1 }];  // garrison already wiped
-    const isLead = {};
-    fronts.forEach((fr) => { isLead[fr.type] = true; });
-    const wSum = fronts.reduce((s, fr) => s + fr.weight, 0) || 1;
+    const defShares = lineShares(D), atkShares = lineShares(A);
 
-    const aEhp = atkEhpNow();
-    const shares = { inf:0, rng:0, cav:0 };
-    if (aEhp > 0) atkUnits.forEach((u) => { shares[u.type] += (u.count * u.ehp) / aEhp; });
+    // attacker output, against the garrison's current line
+    let atkDmg = armyOutput(A, defShares) * P.damageScale * atkMorale.output();
+    atkDmg = Math.min(atkDmg, defBite) * (burst ? 1 + num(S.atk.familiar) / 100 : 1);
+    // garrison output, against the march's current line
+    let defDmg = armyOutput(D, atkShares) * P.damageScale * defMorale.output();
+    defDmg = Math.min(defDmg, atkBite) * (burst ? 1 + num(S.def.familiar) / 100 : 1);
 
-    // counter bonus is weighted by how much of the hit lands on each lead squad
-    let atkDmg = 0;
-    atkUnits.forEach((u) => {
-      if (u.count <= 0) return;
-      let cw = 0;
-      fronts.forEach((fr) => { if (TYPE[u.type].beats === fr.type) cw += fr.weight / wSum; });
-      atkDmg += u.count * u.atk * (1 + COUNTER_BONUS * cw) * (isAtkLead[u.type] ? 1 + LEAD_BONUS : 1);
-    });
-    // burst lands after the throughput cap — that is what makes it a burst
-    atkDmg = Math.min(atkDmg * DAMAGE_SCALE, defBite) * (burst ? 1 + S.atk.familiar / 100 : 1);
+    const dFront = D.aliveOf(D.front), dAlive = D.alive();
+    const aFront = A.aliveOf(A.front), aAlive = A.alive();
 
-    const moraleOutput = MORALE.minOutput + (1 - MORALE.minOutput) * (morale / 100);
-    let defDmg = 0;
-    TYPE_KEYS.forEach((yk) => {
-      const mult = 1 + COUNTER_BONUS * (shares[TYPE[yk].beats] || 0);
-      const support = isLead[yk] ? 1 : SUPPORT_FACTOR;  // every lead squad fights at full output
-      TIER_KEYS.forEach((tk) => {
-        const u = def[yk][tk];
-        if (u.count > 0) defDmg += u.count * u.atk * support * mult;
-      });
-    });
-    defDmg = Math.min(defDmg * DAMAGE_SCALE * moraleOutput, atkBite) * (burst ? 1 + S.def.familiar / 100 : 1);
-
-    const frontBefore = frontOf(), armyBefore = defAlive();
-
-    // While the wall stands the march is fighting the wall and its traps, not the
-    // garrison. Traps add their output; incoming damage splits between wall and traps
-    // by HP share, and only what breaches the wall reaches the troops.
     const wallUp = wallHp > 0.5;
     if (wallUp) {
+      // The march fights the wall and its traps; only what breaks through reaches the troops.
       wallRounds++;
-      const beforeAtk = atkAlive();
+      const beforeAtk = A.alive();
       const trapDmg = trapOutput();
-      damageAttacker(defDmg + trapDmg);
-      const killed = beforeAtk - atkAlive();
+      applyDamage(A, defDmg + trapDmg, P.spread);
+      const killed = beforeAtk - A.alive();
       wallKills += killed;
       // one combined hit, so credit the kills to traps by their share of the damage
       trapKills += (defDmg + trapDmg) > 0 ? killed * (trapDmg / (defDmg + trapDmg)) : 0;
 
-      const trapPool = trapCount * trapEhpEach;
-      const mitigated = atkDmg / (1 + W.def / 100);      // wall/trap DEF soaks part of the hit
-      const wallShare = (wallHp + trapPool) > 0 ? wallHp / (wallHp + trapPool) : 1;
+      // Siege counters traps: its share of the march's output hits traps twice as hard.
+      const siegeOut = A.cells.reduce((s, u) => s + (u.type === 'sie' ? u.count * u.atk * (A.front.indexOf('sie') >= 0 ? 1 : P.support) : 0), 0);
+      const plainOut = armyOutput(A, { inf:0, rng:0, cav:0, sie:0 });
+      const siegeBoost = plainOut > 0 ? 1 + COUNTER_BONUS * (siegeOut / plainOut) : 1;
 
+      const trapPool = trapTotal() * trapEhpEach;
+      const mitigated = atkDmg / trapDefMult;   // Trap DEF soaks part of the hit, applied once
+      const wallShare = (wallHp + trapPool) > 0 ? wallHp / (wallHp + trapPool) : 1;
       const toWall = mitigated * wallShare;
-      const toTraps = mitigated * (1 - wallShare);
+      const toTraps = mitigated * (1 - wallShare) * siegeBoost;
 
       const wallAbsorbed = Math.min(wallHp, toWall);
       wallHp -= wallAbsorbed;
       const trapAbsorbed = Math.min(trapPool, toTraps);
-      trapCount = Math.max(0, trapCount - trapAbsorbed / trapEhpEach);
+      const trapsKilled = trapAbsorbed / trapEhpEach;
+      const tNow = trapTotal();
+      // trap losses are shared by count across the trap types
+      if (tNow > 0) TRAP_KEYS.forEach((k) => { traps[k] = Math.max(0, traps[k] - trapsKilled * (traps[k] / tNow)); });
 
       // anything the wall and traps could not swallow breaches through to the garrison
-      const breach = (toWall - wallAbsorbed) + (toTraps - trapAbsorbed);
-      if (breach > 1e-9) damageDefender(breach * (1 + W.def / 100), fronts, frontShare);
+      const breach = (toWall - wallAbsorbed) + (toTraps - trapAbsorbed) / siegeBoost;
+      if (breach > EPS) applyDamage(D, breach * trapDefMult, P.spread);
     } else {
-      damageAttacker(defDmg);
-      damageDefender(atkDmg, fronts, frontShare);
+      applyDamage(A, defDmg, P.spread);
+      applyDamage(D, atkDmg, P.spread);
     }
 
-    const frontLost = frontBefore - frontOf();
-    const armyLost = armyBefore - defAlive();
-    let drain = 100 * ((frontLost / frontStart) * MORALE.frontWeight + (armyLost / armyStart) * MORALE.armyWeight) * MORALE.rate;
-    activeLeads.forEach((yk) => TIER_KEYS.forEach((tk) => {
-      const key = yk + tk, u = def[yk][tk];
-      if (!collapsed[key] && u.start > 0 && u.count <= 0) { collapsed[key] = true; drain += MORALE.breakShock; }
-    }));
-    let counterPressure = 0;
-    fronts.forEach((fr) => { counterPressure += (shares[COUNTERED_BY[fr.type]] || 0) * (fr.weight / wSum); });
-    drain *= 1 + (MORALE.counterPen - 1) * counterPressure;
-    morale = Math.max(0, morale - drain);
-    if (frontOf() <= 0.5) morale = 0;
+    defMorale.drain(dFront, dAlive, atkShares);
+    atkMorale.drain(aFront, aAlive, defShares);
 
-    const lossRatio = 1 - atkAlive() / atkStartTotal;
-    log.push({ r:round, engaged: wallUp ? 'WALL' : fronts.map((fr) => TYPE[fr.type].short).join('+'), burst,
-               atkDmg, defDmg, morale, atkLeft:atkAlive(), frontLeft:frontOf(), lossRatio,
+    const line = (army) => army.currentLine().filter((y) => army.aliveOf([y]) > 0.5).map((y) => TYPE[y].short).join('+') || '-';
+    log.push({ r:round, engaged: wallUp ? 'WALL' : line(D), burst,
+               atkDmg, defDmg, morale:defMorale.value, atkMorale:atkMorale.value,
+               atkLeft:A.alive(), frontLeft:D.aliveOf(D.front), lossRatio:1 - A.alive() / (A.start || 1),
                wallPct: wallMaxEhp > 0 ? (wallHp / wallMaxEhp) * 100 : 0 });
 
-    if (atkAlive() <= 0.5) { outcome = 'win'; break; }
-    if (lossRatio >= retreatAt) { outcome = 'retreat'; break; }
-    if (morale <= 0) { outcome = 'loss'; lossReason = frontOf() <= 0.5 ? 'front' : 'morale'; break; }
+    // the defender is favoured on a same-round tie, as before
+    if (A.alive() <= 0.5) { outcome = 'win'; break; }
+    if (D.alive() <= 0.5) { outcome = 'loss'; lossReason = 'wiped'; break; }
+    if (atkMorale.value <= 0) { outcome = 'retreat'; break; }
+    if (defMorale.value <= 0) { outcome = 'loss'; lossReason = 'morale'; break; }
   }
   // engagement ran its full length with both sides still standing — judge on attrition
   if (!outcome) {
-    const defLossPct = 1 - defAlive() / armyStart;
-    outcome = (1 - atkAlive() / atkStartTotal) >= retreatAt ? 'retreat'
-            : (defLossPct >= 0.60 || frontOf() <= 0.5) ? 'loss'
-            : 'held';
+    const defLossPct = 1 - D.alive() / (D.start || 1);
+    outcome = defLossPct >= 0.60 ? 'loss' : 'held';
     // a time-out loss is NOT a morale collapse — say which rule actually ended it
-    if (outcome === 'loss') lossReason = frontOf() <= 0.5 ? 'front' : 'attrition';
+    if (outcome === 'loss') lossReason = 'attrition';
   }
 
-  const defRows = [];
-  let defLost = 0, defSurv = 0, mightLost = 0;
-  TIER_KEYS.forEach((tk) => TYPE_KEYS.forEach((yk) => {
-    const u = def[yk][tk];
-    const lost = Math.max(0, u.start - u.count), surv = Math.max(0, u.count);
-    defRows.push({ tier:tk, type:yk, start:u.start, lost, surv });
-    defLost += lost; defSurv += surv; mightLost += lost * TIER[tk].might;
-  }));
+  const rowsOf = (army) => army.cells.map((u) => ({ tier:u.tier, type:u.type, start:u.start,
+    lost:Math.max(0, u.start - u.count), surv:Math.max(0, u.count) }));
 
-  const atkRows = [];
-  let atkLost = 0, atkSurv = 0, atkStart = 0, atkMightLost = 0;
-  atkUnits.forEach((u) => {
-    const lost = Math.max(0, u.start - u.count);
-    atkRows.push({ tier:u.tier, type:u.type, start:u.start, lost, surv:Math.max(0, u.count), wounded:0, dead:0 });
-    atkLost += lost; atkSurv += Math.max(0, u.count); atkStart += u.start; atkMightLost += lost * TIER[u.tier].might;
-  });
+  const defRows = rowsOf(D);
+  const defLost = defRows.reduce((s, r) => s + r.lost, 0);
+  const defSurv = defRows.reduce((s, r) => s + r.surv, 0);
+  const mightLost = defRows.reduce((s, r) => s + r.lost * TIER[r.tier].might, 0);
+  const armyStart = D.start || 1;
+
+  const atkRows = rowsOf(A).filter((r) => r.start > 0);
+  atkRows.forEach((r) => { r.wounded = 0; r.dead = 0; });
+  const atkLost = atkRows.reduce((s, r) => s + r.lost, 0);
+  const atkSurv = atkRows.reduce((s, r) => s + r.surv, 0);
+  const atkStart = atkRows.reduce((s, r) => s + r.start, 0);
+  const atkMightLost = atkRows.reduce((s, r) => s + r.lost * TIER[r.tier].might, 0);
   // 60% of the march's losses are wounded, and the wounded slots go to the highest tiers
   // first; within a tier they are shared in proportion to each squad's losses.
   let atkWoundQuota = atkLost * ATK_WOUNDED_SHARE;
@@ -462,7 +512,7 @@ export function runSimulation(cfg) {
   const atkWounded = atkRows.reduce((s, r) => s + r.wounded, 0);
   const atkDead = atkLost - atkWounded;
 
-  let capacity = Math.max(0, S.def.infirmary);
+  let capacity = Math.max(0, num(S.def.infirmary));
   const ward = {}, overflowByTier = {};
   TIER_KEYS.slice().reverse().forEach((tk) => {
     const lostTier = defRows.filter((r) => r.tier === tk).reduce((s, r) => s + r.lost, 0);
@@ -472,7 +522,7 @@ export function runSimulation(cfg) {
   const wounded = TIER_KEYS.reduce((s, tk) => s + ward[tk], 0);
   const overflow = TIER_KEYS.reduce((s, tk) => s + overflowByTier[tk], 0);
   // Overflow: 80% goes to the Sanctuary while it has space; the rest dies.
-  const sanctuaryCap = Math.max(0, S.def.sanctuary || 0);
+  const sanctuaryCap = Math.max(0, num(S.def.sanctuary));
   const sanctuary = Math.min(overflow * SANCTUARY_DEF_SHARE, sanctuaryCap);
   const fallen = overflow - sanctuary;
   // Divine Providence revives a free 10% of the fallen; the rest is gone for good.
@@ -488,8 +538,12 @@ export function runSimulation(cfg) {
     stone: n * T5_COST.stone * ratio, ore: n * T5_COST.ore * ratio
   });
 
+  const trapLeftBy = {}, trapLostBy = {};
+  TRAP_KEYS.forEach((k) => { trapLeftBy[k] = traps[k]; trapLostBy[k] = Math.max(0, trapStartBy[k] - traps[k]); });
+
   return {
-    outcome, lossReason, rounds:round, formation, log, morale,
+    outcome, lossReason, rounds:round, formation:defFormation, log,
+    morale:defMorale.value, atkMorale:atkMorale.value,
     defRows, defLost, defSurv, mightLost, armyStart,
     atkRows, atkLost, atkSurv, atkStart, atkMightLost, atkWounded, atkDead,
     ward, overflowByTier, wounded, overflow, sanctuary, sanctuaryCap, divine, dead,
@@ -500,9 +554,10 @@ export function runSimulation(cfg) {
     wallStartPct: wallMaxEhp > 0 ? (wallStartHp / wallMaxEhp) * 100 : 0,
     wallPctLeft: wallMaxEhp > 0 ? (wallHp / wallMaxEhp) * 100 : 0,
     wallRounds, wallKills, trapKills, trapVolleyKills,
-    trapStart, trapLeft:trapCount, trapLost:Math.max(0, trapStart - trapCount),
-    defLeads: activeLeads, defStanceLabel: defStance.label, atkStanceLabel: atkStance.label,
-    retreatPct: retreatAt * 100, lossPct: (1 - atkAlive() / atkStartTotal) * 100,
-    frontStart, frontLeft: frontOf()
+    trapStart, trapLeft:trapTotal(), trapLost:Math.max(0, trapStart - trapTotal()), trapStartBy, trapLeftBy, trapLostBy,
+    defLeads: D.front, atkLeads: A.front, atkFormation,
+    defStanceLabel: STANCE[defStanceKey].label, atkStanceLabel: STANCE[atkStanceKey].label,
+    lossPct: (1 - A.alive() / (A.start || 1)) * 100,
+    frontStart: D.frontStart, frontLeft: D.aliveOf(D.front)
   };
 }

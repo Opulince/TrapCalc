@@ -1,9 +1,8 @@
 // DOM building, rendering and event wiring. All combat maths lives in engine.js.
 import {
-  TIER_KEYS, TYPE_KEYS, TIER, TYPE, COUNTERED_BY, STANCE, MARCH, PRESETS,
-  LINEUPS, TIER_MIX, T5_COST, STAT_CAP,
-  runSimulation, leadTypes, attackerTierShare, attackerTypeShare, dominantType,
-  effStat, clamp
+  TIER_KEYS, TYPE_KEYS, COMBAT_KEYS, TIER, TYPE, COUNTERED_BY, STANCE, MARCH, PRESETS,
+  LINEUPS, TIER_MIX, T5_COST, STAT_CAP, TRAP_KEYS, TRAP_TYPE,
+  runSimulation, leadTypes, battleLines, fillTroops, effStat, clamp
 } from './engine.js';
 
 /* ═══════════════════════════ STATE ═══════════════════════════ */
@@ -17,32 +16,40 @@ const DEF_DEFAULTS = {
     inf:  { atk:302.49, def:229.85, hp:201.72 },
     rng:  { atk:318.54, def:184.95, hp:185.83 },
     cav:  { atk:309.72, def:194.47, hp:201.08 },
+    sie:  { atk:0,      def:0,      hp:0      },
     army: { atk:155.45, def:226.75, hp:348.00 }
   },
   formation:'cav', stance:'phalanx',
-  wall: { maxHp:2000000, pct:100, traps:200000, atk:60.84, def:66.92 },
-  infirmary:300000, sanctuary:0, retreat:38, familiar:20
+  // Wall Max HP and trap capacity default to the in-game table for the player's castle level
+  // (126,250 traps / 12,625 HP); the trap split across types is a placeholder.
+  wall: { maxHp:12625, pct:100, traps:{ spk:42084, twr:42083, log:42083 }, atk:60.84, def:66.92 },
+  infirmary:300000, sanctuary:0, familiar:20
 };
 
 const state = {
   troops: {
-    t1: { inf:0,       rng:0,       cav:0       },
-    t2: { inf:1500000, rng:1500000, cav:1500000 },
-    t3: { inf:0,       rng:0,       cav:0       },
-    t4: { inf:400000,  rng:400000,  cav:400000  },
-    t5: { inf:100000,  rng:100000,  cav:100000  }
+    t1: { inf:0,       rng:0,       cav:0,       sie:0 },
+    t2: { inf:1500000, rng:1500000, cav:1500000, sie:0 },
+    t3: { inf:0,       rng:0,       cav:0,       sie:0 },
+    t4: { inf:400000,  rng:400000,  cav:400000,  sie:0 },
+    t5: { inf:100000,  rng:100000,  cav:100000,  sie:0 }
   },
   def: structuredClone(DEF_DEFAULTS),
-  // ATK / DEF / HP are independent, exactly as on the defender side. Deriving DEF and HP
-  // from a single "attack stats" number squared one input into survivability.
+  // ATK / DEF / HP are independent, exactly as on the defender side. The march itself is a
+  // tier x type squad grid; total / lineup / tierMix only drive the Quick Fill shortcut.
+  // formation + stance is the lineup the report names, chosen independently of the troops.
   atk: { march:'solo', total:250000, stat:450, def:400, hp:450, lineup:'cav', tierMix:'t4',
-         formation:'cav', stance:'phalanx', familiar:20 }
+         formation:'cav', stance:'phalanx', familiar:20, troops: fillTroops(250000, 'cav', 't4') }
 };
+const refillMarch = () => { state.atk.troops = fillTroops(state.atk.total, state.atk.lineup, state.atk.tierMix); };
+const marchTotal = () => TIER_KEYS.reduce((s, tk) => s + TYPE_KEYS.reduce((q, yk) => q + state.atk.troops[tk][yk], 0), 0);
+const marchTypeCount = (yk) => TIER_KEYS.reduce((s, tk) => s + state.atk.troops[tk][yk], 0);
 
 const STAT_ROWS = [
   { key:'inf',  label:'Infantry' },
   { key:'rng',  label:'Ranged' },
   { key:'cav',  label:'Cavalry' },
+  { key:'sie',  label:'Siege' },
   { key:'army', label:'Army (all)' }
 ];
 const STAT_COLS = [
@@ -73,9 +80,6 @@ const totalMight = () => TIER_KEYS.reduce((s, t) => s + TIER[t].might * TYPE_KEY
 const tierCount  = (t) => TYPE_KEYS.reduce((s, y) => s + state.troops[t][y], 0);
 const typeCountOf = (y) => TIER_KEYS.reduce((s, t) => s + state.troops[t][y], 0);
 
-function lineupSplitText(share) {
-  return TYPE_KEYS.map((yk) => Math.round(share[yk] * 100) + '%').join(' / ');
-}
 
 /* ═══════════════════════════ BUILD DOM ═══════════════════════════ */
 function buildTiers() {
@@ -130,10 +134,36 @@ function buildLineups() {
     const L = LINEUPS[k];
     const sum = L.parts.reduce((a, b) => a + b, 0) || 1;
     const split = L.parts.filter((p) => p > 0).length > 1
-      ? ' — ' + TYPE_KEYS.map((yk, i) => Math.round(L.parts[i] / sum * 100) + '%').join('/')
+      ? ' — ' + COMBAT_KEYS.map((yk, i) => Math.round(L.parts[i] / sum * 100) + '%').join('/')
       : '';
     return '<option value="' + k + '">' + L.label + split + '</option>';
   }).join('');
+}
+
+// The march as the report shows it: one box per tier x type.
+function buildAtkGrid() {
+  const cols = 'grid grid-cols-[1.75rem_repeat(4,minmax(0,1fr))] gap-1';
+  const head = `<div class="${cols} pb-1">
+    <span></span>${TYPE_KEYS.map((yk) => `<span class="text-right font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">${TYPE[yk].short}</span>`).join('')}
+  </div>`;
+  const rows = TIER_KEYS.map((tk) => `
+    <div class="${cols} items-center py-0.5">
+      <span class="font-mono text-xs font-bold tracking-widest text-rose-300">${TIER[tk].name}</span>
+      ${TYPE_KEYS.map((yk) => `
+        <input data-atk-tier="${tk}" data-atk-type="${yk}" type="number" min="0" step="1000" value="${state.atk.troops[tk][yk]}"
+          class="field rose num w-full px-1 py-1 text-right text-[11px] font-semibold text-rose-200 sm:text-[12px]"
+          aria-label="Attacker ${TIER[tk].name} ${TYPE[yk].name}" />`).join('')}
+    </div>`).join('');
+  $('atkGrid').innerHTML = head + rows;
+}
+
+function renderAtkGrid() {
+  document.querySelectorAll('[data-atk-tier]').forEach((el) => {
+    if (document.activeElement !== el) el.value = Math.round(state.atk.troops[el.dataset.atkTier][el.dataset.atkType]);
+  });
+  const fill = fillTroops(state.atk.total, state.atk.lineup, state.atk.tierMix);
+  const custom = TIER_KEYS.some((tk) => TYPE_KEYS.some((yk) => Math.round(fill[tk][yk]) !== Math.round(state.atk.troops[tk][yk])));
+  $('atkGridTag').textContent = n0(marchTotal()) + ' troops' + (custom ? ' · custom' : ' · from quick fill');
 }
 
 function buildDefStats() {
@@ -161,7 +191,7 @@ function buildDefStats() {
   const eff = `
     <div class="px-4 py-2.5">
       <div class="mb-1 font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400">Effective (type + army)</div>
-      <div id="defEff" class="grid grid-cols-3 gap-2 text-xs"></div>
+      <div id="defEff" class="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4"></div>
     </div>`;
 
   $('defStatWrap').innerHTML = head + rows + eff;
@@ -216,6 +246,8 @@ function renderLunar() {
   $('hdrGear').textContent   = compact(t5 * T5_COST.gear);
 }
 
+const trapTotal = () => TRAP_KEYS.reduce((s, k) => s + state.def.wall.traps[k], 0);
+
 function renderWall() {
   const w = state.def.wall;
   const up = w.pct > 0;
@@ -225,8 +257,9 @@ function renderWall() {
   $('wallTag').className = 'font-mono text-[10px] uppercase tracking-widest ' +
     (up ? 'text-accent-300' : 'text-rose-400');
   $('wallHint').innerHTML = up
-    ? '<span class="font-semibold text-accent-300">' + n0(w.traps) + ' traps active.</span> They take the first shot before the armies trade, ' +
-      'and the garrison is shielded until the wall falls. Damage splits between wall and traps by HP share, so more traps means a longer wall fight.'
+    ? '<span class="font-semibold text-accent-300">' + n0(trapTotal()) + ' traps active.</span> They take the first shot before the armies trade, ' +
+      'and the garrison is shielded until the wall falls. Damage splits between wall and traps by HP share, so more traps means a longer wall fight. ' +
+      'Each trap type hits its counter twice as hard; siege hits traps twice as hard.'
     : '<span class="font-semibold text-rose-400">Traps are inert at 0% wall HP.</span> The march engages your troops directly from round 1 — ' +
       'this is why the same attacker produces wildly different reports on a burning castle.';
 }
@@ -249,19 +282,17 @@ function renderFormation() {
   $('hdrForm').textContent = f.short + ' ' + st.label;
   $('formTag').textContent = f.name + ' ' + st.label;
 
+  const lines = battleLines(state.def.formation, state.def.stance);
+  const lineTxt = lines.map((l) => l.map((y) => TYPE[y].name).join(' + ')).join(' → ');
   if (state.def.stance === 'wedge') {
     const partner = TYPE[leads[1]];
     $('formHint').innerHTML =
-      '<span class="font-semibold text-accent-300">' + f.name + ' + ' + partner.name + '</span> hold the line together — ' +
-      partner.name + ' screens the ' + TYPE[COUNTERED_BY[f.key]].name + ' that counters ' + f.name + '. ' +
-      'Incoming splits ' + Math.round(st.weights[0] * 100) + '/' + Math.round(st.weights[1] * 100) +
-      ' across both squads and both fight at full output, so no single squad eats the overkill.';
+      '<span class="font-semibold text-accent-300">' + f.name + ' + ' + partner.name + '</span> hold the front together — ' +
+      partner.name + ' screens the ' + TYPE[COUNTERED_BY[f.key]].name + ' that counters ' + f.name + '. Lines: ' + lineTxt + '.';
   } else {
     $('formHint').innerHTML =
-      '<span class="font-semibold text-accent-300">' + f.name + '</span> absorbs ' +
-      Math.round(STANCE[state.atk.stance].frontShare * 100) + '% of incoming alone (set by the attacker\'s ' +
-      STANCE[state.atk.stance].label.toLowerCase() + '). Deals <span class="font-semibold text-accent-300">2x</span> to ' + TYPE[f.beats].name +
-      ', takes <span class="font-semibold text-rose-400">2x</span> from ' + TYPE[COUNTERED_BY[f.key]].name + '.';
+      '<span class="font-semibold text-accent-300">' + f.name + '</span> takes every hit until it falls. Deals <span class="font-semibold text-accent-300">2x</span> to ' +
+      TYPE[f.beats].name + ', takes <span class="font-semibold text-rose-400">2x</span> from ' + TYPE[COUNTERED_BY[f.key]].name + '. Lines: ' + lineTxt + '.';
   }
 }
 
@@ -279,7 +310,7 @@ function renderMarch() {
     b.className = 'marchBtn px-2 py-2.5 text-xs font-semibold transition ' +
       (on ? 'bg-rose-500 text-slate-950' : 'bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-slate-100');
   });
-  $('marchTag').textContent = m.name + ' · ' + n0(state.atk.total);
+  $('marchTag').textContent = m.name + ' · ' + n0(marchTotal());
 }
 
 function renderAttacker() {
@@ -293,8 +324,6 @@ function renderAttacker() {
   $('inAtkTier').value = state.atk.tierMix;
   if (document.activeElement !== $('inAtkDef')) $('inAtkDef').value = state.atk.def;
   if (document.activeElement !== $('inAtkHp')) $('inAtkHp').value = state.atk.hp;
-  // the march's lead type IS its composition's dominant type — "Ranged Wedge" is a ranged march
-  state.atk.formation = dominantType(state);
   $('atkLineupName').textContent = TYPE[state.atk.formation].name + ' ' + STANCE[state.atk.stance].label;
   if (document.activeElement !== $('slAtkFam')) $('slAtkFam').value = state.atk.familiar;
   if (document.activeElement !== $('inAtkFam')) $('inAtkFam').value = state.atk.familiar;
@@ -304,10 +333,16 @@ function renderAttacker() {
     b.className = 'atkStanceBtn px-2 py-2 text-xs font-semibold transition ' +
       (on ? 'bg-rose-500 text-slate-950' : 'bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-slate-100');
   });
+  document.querySelectorAll('.atkFormBtn').forEach((b) => {
+    const on = b.dataset.atkform === state.atk.formation;
+    b.className = 'atkFormBtn px-2 py-2 text-xs font-semibold transition ' +
+      (on ? 'bg-rose-500 text-slate-950' : 'bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-slate-100');
+  });
+  renderAtkGrid();
 
-  const typeShare = attackerTypeShare(state), tierShare = attackerTierShare(state);
+  const total = marchTotal();
   $('atkPreview').innerHTML = TYPE_KEYS.map((yk) => {
-    const c = state.atk.total * typeShare[yk];
+    const c = marchTypeCount(yk);
     const on = c > 0;
     return `
     <div class="px-4 py-2.5">
@@ -319,35 +354,37 @@ function renderAttacker() {
   document.querySelectorAll('.presetBtn').forEach((b) => {
     const p = PRESETS[b.dataset.preset];
     const on = state.atk.march === p.march && state.atk.total === p.size && state.atk.stat === p.stat &&
-               state.atk.def === p.def && state.atk.hp === p.hp && state.atk.tierMix === p.tier;
+               state.atk.def === p.def && state.atk.hp === p.hp && state.atk.tierMix === p.tier &&
+               $('atkGridTag').textContent.indexOf('custom') < 0;
     b.className = 'presetBtn px-3 py-2.5 text-left transition ' +
       (on ? 'bg-rose-500/15 text-rose-100 ring-1 ring-inset ring-rose-500/50' : 'bg-slate-900 text-slate-200 hover:bg-slate-800');
   });
 
-  const f = state.def.formation;
-  const defLeads = leadTypes(f, state.def.stance);
-  const defW = STANCE[state.def.stance].weights;
-  let atkCounters = 0, defCounters = 0;
-  defLeads.forEach((lt, i) => {
-    TYPE_KEYS.forEach((yk) => {
-      if (TYPE[yk].beats === lt) atkCounters += typeShare[yk] * defW[i];
-      if (TYPE[lt].beats === yk) defCounters += typeShare[yk] * defW[i];
-    });
-  });
-  const atkLeadTxt = leadTypes(state.atk.formation, state.atk.stance).map((k) => TYPE[k].short).join('+');
-  const tierTxt = Object.keys(tierShare).map((k) => Math.round(tierShare[k] * 100) + '% ' + TIER[k].name).join(' / ') +
-                  ' · lineup ' + lineupSplitText(typeShare) + ' INF/RNG/CAV · spearhead ' +
-                  atkLeadTxt + ' ' + STANCE[state.atk.stance].label;
-  const defLabel = TYPE[f].name + ' ' + STANCE[state.def.stance].label.toLowerCase();
+  // Front against front: the share of each front made of the other side's counter.
+  const defFront = leadTypes(state.def.formation, state.def.stance);
+  const atkFront = leadTypes(state.atk.formation, state.atk.stance);
+  const defN = (yk) => TIER_KEYS.reduce((s, tk) => s + state.troops[tk][yk], 0);
+  const frontShare = (types, nOf) => {
+    const n = types.reduce((s, y) => s + nOf(y), 0) || 1;
+    const o = {}; types.forEach((y) => { o[y] = nOf(y) / n; }); return o;
+  };
+  const dS = frontShare(defFront, defN), aS = frontShare(atkFront, marchTypeCount);
+  let defCounters = 0, atkCounters = 0;
+  defFront.forEach((d) => atkFront.forEach((a) => {
+    if (TYPE[d].beats === a) defCounters += dS[d] * aS[a];
+    if (TYPE[a].beats === d) atkCounters += dS[d] * aS[a];
+  }));
+  const name = (types) => types.map((y) => TYPE[y].name).join(' + ');
+  const tierTxt = TIER_KEYS.filter((tk) => TYPE_KEYS.some((yk) => state.atk.troops[tk][yk] > 0))
+    .map((tk) => TIER[tk].name + ' ' + pctTxt(TYPE_KEYS.reduce((s, yk) => s + state.atk.troops[tk][yk], 0), total || 1, 0)).join(' / ');
+  const head = 'Their front: ' + name(atkFront) + '. Yours: ' + name(defFront) + '. March ' + (tierTxt || 'empty') + '.';
   let txt;
   if (defCounters > atkCounters) {
-    txt = '<span class="font-semibold text-accent-300">Favourable.</span> Your ' + defLabel + ' counters ' +
-          Math.round(defCounters * 100) + '% of the march. Composition: ' + tierTxt + '.';
+    txt = '<span class="font-semibold text-accent-300">Favourable.</span> Your front counters theirs. ' + head;
   } else if (atkCounters > defCounters) {
-    txt = '<span class="font-semibold text-rose-400">Countered.</span> ' + Math.round(atkCounters * 100) +
-          '% of the march counters your ' + defLabel + '. Composition: ' + tierTxt + '.';
+    txt = '<span class="font-semibold text-rose-400">Countered.</span> Their front counters yours. ' + head;
   } else {
-    txt = '<span class="font-semibold text-slate-200">Neutral matchup.</span> Composition: ' + tierTxt + '.';
+    txt = '<span class="font-semibold text-slate-200">Neutral fronts.</span> ' + head;
   }
   $('matchup').innerHTML = txt;
 }
@@ -384,24 +421,25 @@ function renderResults(R) {
                  : R.outcome === 'held' ? 'FRONTLINE HELD'
                  : 'ZEROED / BURNED';
   const summary = R.outcome === 'win'
-    ? 'Entire march of ' + n0(R.atkStart) + ' destroyed in ' + R.rounds + ' rounds. ' + frontLabel +
+    ? 'Entire march of ' + n0(R.atkStart) + ' destroyed in ' + R.rounds + ' rounds — no back line left to escape. ' + frontLabel +
       ' held with ' + compact(R.frontLeft) + ' standing and ' + R.morale.toFixed(0) + '% morale.'
     : R.outcome === 'held'
-    ? 'Engagement ran its full ' + R.rounds + ' rounds. ' + frontLabel + ' still standing with ' +
-      compact(R.frontLeft) + ' troops at ' + R.morale.toFixed(0) + '% morale; the march kept ' +
+    ? 'Engagement ran its full ' + R.rounds + ' rounds. ' + (R.frontLeft > 0.5
+        ? frontLabel + ' still standing with ' + compact(R.frontLeft) + ' troops'
+        : frontLabel + ' fell, but ' + compact(R.defSurv) + ' troops behind it held') +
+      ' at ' + R.morale.toFixed(0) + '% morale; the march kept ' +
       compact(R.atkSurv) + ' and took ' + R.lossPct.toFixed(1) + '% losses.'
     : R.outcome === 'retreat'
-    ? 'Attacker broke off on round ' + R.rounds + ' after losing ' + R.lossPct.toFixed(1) + '% of the march (threshold ' +
-      R.retreatPct.toFixed(0) + '%). ' + compact(R.atkSurv) + ' troops fled home; ' + frontLabel + ' held at ' +
-      R.morale.toFixed(0) + '% morale.'
-    : (R.lossReason === 'front'
-        ? 'Your front line was wiped out on round ' + R.rounds + '. '
+    ? 'The march\'s morale broke on round ' + R.rounds + ' after losing ' + R.lossPct.toFixed(1) + '% of its troops. ' +
+      compact(R.atkSurv) + ' troops fled home; ' + frontLabel + ' held at ' + R.morale.toFixed(0) + '% morale.'
+    : (R.lossReason === 'wiped'
+        ? 'Your whole garrison was wiped out on round ' + R.rounds + '. '
         : R.lossReason === 'attrition'
         ? 'Engagement ran its full ' + R.rounds + ' rounds and you lost ' + pctTxt(R.defLost, R.armyStart, 1) +
           ' of the garrison (60%+ counts as a loss) with morale still at ' + R.morale.toFixed(0) + '%. '
         : 'Morale collapsed on round ' + R.rounds + '. ') +
-      compact(R.atkSurv) + ' attacker troops still marching (' +
-      R.lossPct.toFixed(1) + '% killed, ' + R.retreatPct.toFixed(0) + '% needed to force a retreat).';
+      compact(R.atkSurv) + ' attacker troops still marching (' + R.lossPct.toFixed(1) + '% of the march lost, enemy morale ' +
+      R.atkMorale.toFixed(0) + '%).';
 
   const banner = `
   <div class="fade overflow-hidden rounded-xl border ${win ? 'border-accent-500/50' : 'border-rose-500/50'} bg-slate-900/60">
@@ -423,12 +461,11 @@ function renderResults(R) {
       </div>
 
       <div class="mb-1.5 mt-3 flex items-baseline justify-between">
-        <span class="text-sm font-medium text-slate-300">March Destroyed</span>
-        <span class="num text-sm font-semibold text-slate-300">${R.lossPct.toFixed(1)}% <span class="text-slate-400">/ ${R.retreatPct.toFixed(0)}% breaks them</span></span>
+        <span class="text-sm font-medium text-slate-300">Enemy Morale</span>
+        <span class="num text-sm font-semibold text-rose-300">${R.atkMorale.toFixed(1)}% <span class="text-slate-400">· ${R.lossPct.toFixed(1)}% of march lost</span></span>
       </div>
-      <div class="relative h-2 overflow-hidden rounded-full bg-slate-800">
-        <div class="bar h-full ${R.lossPct >= R.retreatPct ? 'bg-accent-500' : 'bg-rose-500'}" style="width:${clamp(R.lossPct, 0, 100)}%"></div>
-        <div class="absolute inset-y-0 w-px bg-slate-300" style="left:${clamp(R.retreatPct, 0, 100)}%"></div>
+      <div class="h-2 overflow-hidden rounded-full bg-slate-800">
+        <div class="bar h-full bg-rose-500" style="width:${clamp(R.atkMorale, 0, 100)}%"></div>
       </div>
     </div>
 
@@ -565,6 +602,7 @@ function renderResults(R) {
       <div class="px-4 py-2.5">
         <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Traps Lost</div>
         <div class="num text-sm font-semibold text-rose-400">${n0(R.trapLost)} / ${n0(R.trapStart)}</div>
+        <div class="num text-[11px] text-slate-400">${TRAP_KEYS.filter((k) => R.trapStartBy[k] > 0).map((k) => TRAP_TYPE[k].name + ' ' + compact(R.trapLostBy[k])).join(' · ')}</div>
       </div>
       <div class="px-4 py-2.5">
         <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Trap Kills</div>
@@ -672,6 +710,7 @@ function renderResults(R) {
             <th class="py-2 text-right font-medium">March</th>
             <th class="py-2 text-right font-medium">Front</th>
             <th class="py-2 text-right font-medium">Morale</th>
+            <th class="py-2 text-right font-medium">Enemy</th>
           </tr>
         </thead>
         <tbody>
@@ -684,6 +723,7 @@ function renderResults(R) {
               <td class="py-1.5 text-right text-slate-300">${compact(l.atkLeft)}</td>
               <td class="py-1.5 text-right text-slate-300">${compact(l.frontLeft)}</td>
               <td class="py-1.5 text-right ${l.morale > 50 ? 'text-slate-300' : l.morale > 20 ? 'text-amber-300' : 'text-rose-400'}">${l.morale.toFixed(0)}%</td>
+              <td class="py-1.5 text-right text-rose-300">${l.atkMorale.toFixed(0)}%</td>
             </tr>`).join('')}
         </tbody>
       </table>
@@ -731,6 +771,13 @@ document.querySelectorAll('[data-wall]').forEach((el) => el.addEventListener('in
   renderWall();
 }));
 
+document.querySelectorAll('[data-trap]').forEach((el) => el.addEventListener('input', (e) => {
+  let v = Number(e.target.value);
+  if (!isFinite(v) || v < 0) v = 0;
+  state.def.wall.traps[e.target.dataset.trap] = Math.round(v);
+  renderWall();
+}));
+
 document.querySelectorAll('.defStanceBtn').forEach((b) => b.addEventListener('click', () => {
   state.def.stance = b.dataset.stance;
   renderFormation(); renderTroops(); renderAttacker();
@@ -738,8 +785,23 @@ document.querySelectorAll('.defStanceBtn').forEach((b) => b.addEventListener('cl
 
 document.querySelectorAll('.atkStanceBtn').forEach((b) => b.addEventListener('click', () => {
   state.atk.stance = b.dataset.atkstance;
-  renderAttacker(); renderFormation();  // the defender hint quotes the attacker's front share
+  renderAttacker();
 }));
+
+document.querySelectorAll('.atkFormBtn').forEach((b) => b.addEventListener('click', () => {
+  state.atk.formation = b.dataset.atkform;
+  renderAttacker();
+}));
+
+// editing a squad box makes the march custom; quick fill no longer drives it until used again
+$('atkGrid').addEventListener('input', (e) => {
+  const el = e.target, tk = el.dataset.atkTier, yk = el.dataset.atkType;
+  if (!tk || !yk) return;
+  let v = Number(el.value);
+  if (!isFinite(v) || v < 0) v = 0;
+  state.atk.troops[tk][yk] = Math.round(v);
+  renderAttacker();
+});
 
 document.querySelectorAll('[data-fam]').forEach((el) => el.addEventListener('input', (e) => {
   const side = e.target.dataset.fam;
@@ -748,17 +810,12 @@ document.querySelectorAll('[data-fam]').forEach((el) => el.addEventListener('inp
   document.querySelectorAll('[data-fam="' + side + '"]').forEach((o) => { if (o !== e.target) o.value = v; });
 }));
 
-document.querySelectorAll('[data-retreat]').forEach((el) => el.addEventListener('input', (e) => {
-  const v = clamp(Number(e.target.value) || 0, 20, 100);
-  state.def.retreat = v;
-  document.querySelectorAll('[data-retreat]').forEach((o) => { if (o !== e.target) o.value = v; });
-}));
-
 document.querySelectorAll('.marchBtn').forEach((b) => b.addEventListener('click', () => {
   const m = b.dataset.march;
   if (state.atk.march === m) return;
   state.atk.march = m;
   state.atk.total = MARCH[m].base;
+  refillMarch();
   renderAttacker();
 }));
 
@@ -770,6 +827,7 @@ document.querySelectorAll('.presetBtn').forEach((b) => b.addEventListener('click
   state.atk.def = p.def;
   state.atk.hp = p.hp;
   state.atk.tierMix = p.tier;
+  refillMarch();
   renderAttacker();
 }));
 
@@ -780,6 +838,7 @@ document.querySelectorAll('.presetBtn').forEach((b) => b.addEventListener('click
   state.atk.total = Math.round(clamp(v, m.min, m.max));
   if (id === 'inAtkTotal') $('slAtkTotal').value = state.atk.total;
   else $('inAtkTotal').value = state.atk.total;
+  refillMarch();
   renderAttacker();
 }));
 
@@ -799,13 +858,14 @@ $('inAtkHp').addEventListener('input', (e) => {
   state.atk.hp = clamp(Number(e.target.value) || 0, 0, STAT_CAP); renderAttacker();
 });
 
-$('inAtkLineup').addEventListener('change', (e) => { state.atk.lineup = e.target.value; renderAttacker(); });
-$('inAtkTier').addEventListener('change', (e) => { state.atk.tierMix = e.target.value; renderAttacker(); });
+$('inAtkLineup').addEventListener('change', (e) => { state.atk.lineup = e.target.value; refillMarch(); renderAttacker(); });
+$('inAtkTier').addEventListener('change', (e) => { state.atk.tierMix = e.target.value; refillMarch(); renderAttacker(); });
 $('inInfirmary').addEventListener('input', (e) => { state.def.infirmary = Math.max(0, Number(e.target.value) || 0); });
 $('inSanctuary').addEventListener('input', (e) => { state.def.sanctuary = Math.max(0, Number(e.target.value) || 0); });
 
 $('btnResetTroops').addEventListener('click', () => {
-  TIER_KEYS.forEach((tk) => TYPE_KEYS.forEach((yk) => { state.troops[tk][yk] = TIER[tk].base; }));
+  // the baseline garrison has no siege — that row is opt-in
+  TIER_KEYS.forEach((tk) => TYPE_KEYS.forEach((yk) => { state.troops[tk][yk] = yk === 'sie' ? 0 : TIER[tk].base; }));
   renderTroops(); renderLunar();
 });
 $('btnResetStats').addEventListener('click', () => {
@@ -823,7 +883,8 @@ function canonicalValue(el) {
   if (d.srow) return state.def.stats[d.srow][d.scol];
   if (d.wall) return state.def.wall[d.wall];
   if (d.fam) return d.fam === 'def' ? state.def.familiar : state.atk.familiar;
-  if (d.retreat) return state.def.retreat;
+  if (d.trap) return state.def.wall.traps[d.trap];
+  if (d.atkTier) return state.atk.troops[d.atkTier][d.atkType];
   return {
     inAtkTotal: state.atk.total, slAtkTotal: state.atk.total,
     inAtkStat: state.atk.stat, slAtkStat: state.atk.stat,
@@ -867,5 +928,6 @@ buildTiers();
 buildLineups();
 buildTierMixes();
 buildDefStats();
+buildAtkGrid();
 renderAll();
 syncAllInputs();

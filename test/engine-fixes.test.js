@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runSimulation } from '../assets/engine.js';
+import { runSimulation, PARAMS } from '../assets/engine.js';
 
 // Regression tests for the code-review fixes. Each one pins a bug that shipped before.
 
@@ -84,11 +84,31 @@ test('a time-out loss with morale left is reported as attrition, not morale coll
   assert.equal(R.lossReason, 'attrition');
 });
 
-test('a mid-battle morale collapse is reported as morale', () => {
-  const R = runSimulation(cfgWith((c) => { Object.assign(c, structuredClone(ATTRITION)); c.atk.lineup = 'rng'; }));
+// The fitted drain rate rarely empties morale on its own, so these force a fast drain to
+// check that a collapse is reported correctly — on either side.
+const withFastMorale = (fn) => {
+  const keep = PARAMS.morale.rate;
+  PARAMS.morale.rate = 4;
+  try { return fn(); } finally { PARAMS.morale.rate = keep; }
+};
+
+test('a mid-battle defender morale collapse is reported as morale', () => {
+  const R = withFastMorale(() => runSimulation(ATTRITION));
   assert.equal(R.outcome, 'loss');
   assert.ok(R.rounds < 15);
   assert.equal(R.lossReason, 'morale');
+  assert.equal(R.morale, 0);
+});
+
+test('an attacker whose morale hits 0 retreats instead of being wiped', () => {
+  // a small march into a big garrison, wall down
+  const R = withFastMorale(() => runSimulation(cfgWith((c) => {
+    c.def.wall.pct = 0;
+    Object.assign(c.atk, { total: 60000, stat: 300, def: 300, hp: 300, tierMix: 't4', lineup: 'inf' });
+  })));
+  assert.equal(R.outcome, 'retreat');
+  assert.equal(R.atkMorale, 0);
+  assert.ok(R.atkSurv > 0, 'a retreating march keeps survivors');
 });
 
 test('non-loss outcomes carry no loss reason', () => {

@@ -146,7 +146,7 @@
             <span id="wallTag" class="font-mono text-[10px] uppercase tracking-widest text-accent-300">Wall Up · 100%</span>
           </div>
           <input id="slWallPct" data-wall="pct" type="range" min="0" max="100" step="1" value="100" aria-label="Wall HP percent" />
-          <div class="mt-1 grid grid-cols-3 gap-2">
+          <div class="mt-1 grid grid-cols-2 gap-2">
             <label class="block">
               <span class="mb-1 block font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Wall HP %</span>
               <input id="inWallPct" data-wall="pct" type="number" min="0" max="100" step="1" value="100"
@@ -154,13 +154,25 @@
             </label>
             <label class="block">
               <span class="mb-1 block font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Wall Max HP</span>
-              <input id="inWallMax" data-wall="maxHp" type="number" min="0" step="100000" value="2000000"
+              <input id="inWallMax" data-wall="maxHp" type="number" min="0" step="125" value="12625"
                 class="field num w-full px-2 py-1.5 text-right text-[13px] font-semibold text-slate-100" aria-label="Wall max HP" />
             </label>
+          </div>
+          <div class="mt-2 grid grid-cols-3 gap-2">
             <label class="block">
-              <span class="mb-1 block font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Traps</span>
-              <input id="inTraps" data-wall="traps" type="number" min="0" step="5000" value="200000"
-                class="field num w-full px-2 py-1.5 text-right text-[13px] font-semibold text-slate-100" aria-label="Trap count" />
+              <span class="mb-1 block font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Spikes · vs Cav</span>
+              <input id="inTrapSpk" data-trap="spk" type="number" min="0" step="1000" value="42084"
+                class="field num w-full px-2 py-1.5 text-right text-[13px] font-semibold text-slate-100" aria-label="Spike traps (counter cavalry)" />
+            </label>
+            <label class="block">
+              <span class="mb-1 block font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Towers · vs Rng</span>
+              <input id="inTrapTwr" data-trap="twr" type="number" min="0" step="1000" value="42083"
+                class="field num w-full px-2 py-1.5 text-right text-[13px] font-semibold text-slate-100" aria-label="Tower traps (counter ranged)" />
+            </label>
+            <label class="block">
+              <span class="mb-1 block font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Logs · vs Inf</span>
+              <input id="inTrapLog" data-trap="log" type="number" min="0" step="1000" value="42083"
+                class="field num w-full px-2 py-1.5 text-right text-[13px] font-semibold text-slate-100" aria-label="Rolling log traps (counter infantry)" />
             </label>
           </div>
           <div class="mt-2 grid grid-cols-2 gap-2">
@@ -197,20 +209,6 @@
                 <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
               </div>
             </div>
-          </div>
-          <div class="grid grid-cols-12 items-center gap-x-3 gap-y-1 px-4 py-2.5">
-            <span class="col-span-12 text-sm font-medium text-slate-300 sm:col-span-4">Retreat Threshold</span>
-            <div class="col-span-7 sm:col-span-5">
-              <input id="slRetreat" data-retreat="1" type="range" min="20" max="100" step="1" value="38" aria-label="Attacker retreat threshold" />
-            </div>
-            <div class="col-span-5 sm:col-span-3">
-              <div class="relative">
-                <input id="inRetreat" data-retreat="1" type="number" min="20" max="100" step="1" value="38"
-                  class="field num w-full py-1.5 pl-2 pr-6 text-right text-sm font-semibold text-slate-100" aria-label="Attacker retreat threshold value" />
-                <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
-              </div>
-            </div>
-            <p class="col-span-12 text-xs text-slate-400">March breaks off once this share of it is dead — defender victory without a full wipe.</p>
           </div>
         </div>
 
@@ -348,17 +346,6 @@
 
         <div class="divide-y divide-slate-800 border-t border-slate-800">
           <div class="grid grid-cols-12 items-center gap-3 px-4 py-3">
-            <span class="col-span-12 text-sm font-medium text-slate-300 sm:col-span-3">March Size</span>
-            <div class="col-span-7 sm:col-span-6">
-              <input id="slAtkTotal" class="rose" type="range" min="10000" max="375000" step="5000" value="250000" aria-label="March size" />
-            </div>
-            <div class="col-span-5 sm:col-span-3">
-              <input id="inAtkTotal" type="number" min="10000" max="375000" step="5000" value="250000"
-                class="field rose num w-full px-2 py-1.5 text-right text-sm font-semibold text-rose-200" aria-label="March size value" />
-            </div>
-          </div>
-
-          <div class="grid grid-cols-12 items-center gap-3 px-4 py-3">
             <span class="col-span-12 text-sm font-medium text-slate-300 sm:col-span-3">Attack Stats</span>
             <div class="col-span-7 sm:col-span-6">
               <input id="slAtkStat" class="rose" type="range" min="0" max="1600" step="25" value="450" aria-label="Attacker attack stats" />
@@ -391,27 +378,51 @@
             </label>
           </div>
 
-          <div class="grid grid-cols-2 divide-x divide-slate-800">
-            <label class="block px-4 py-3">
-              <span class="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Lineup</span>
-              <select id="inAtkLineup" class="field w-full bg-slate-900 px-2 py-2 text-sm font-medium text-slate-100"></select>
-            </label>
-            <label class="block px-4 py-3">
-              <span class="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Tier Mix</span>
-              <select id="inAtkTier" class="field w-full bg-slate-900 px-2 py-2 text-sm font-medium text-slate-100"></select>
-            </label>
-          </div>
-
           <div class="px-4 py-3">
-            <span class="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Stance</span>
-            <div class="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-slate-700 bg-slate-800">
+            <span class="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Lineup</span>
+            <div class="grid grid-cols-3 gap-px overflow-hidden rounded-md border border-slate-700 bg-slate-800">
+              <button data-atkform="inf" class="atkFormBtn px-2 py-2 text-xs font-semibold transition">Infantry</button>
+              <button data-atkform="rng" class="atkFormBtn px-2 py-2 text-xs font-semibold transition">Ranged</button>
+              <button data-atkform="cav" class="atkFormBtn px-2 py-2 text-xs font-semibold transition">Cavalry</button>
+            </div>
+            <div class="mt-1.5 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-slate-700 bg-slate-800">
               <button data-atkstance="phalanx" class="atkStanceBtn px-2 py-2 text-xs font-semibold transition">Phalanx</button>
               <button data-atkstance="wedge" class="atkStanceBtn px-2 py-2 text-xs font-semibold transition">Wedge</button>
             </div>
             <p class="mt-2 text-xs text-slate-400">
-              Spearhead follows the lineup, exactly as the game names it —
-              <span id="atkLineupName" class="font-semibold text-rose-300">Cavalry Phalanx</span>.
+              As the report names it — <span id="atkLineupName" class="font-semibold text-rose-300">Cavalry Phalanx</span>.
+              Any troops can march in any lineup; it only decides who stands in front.
             </p>
+          </div>
+
+          <div class="px-4 py-3">
+            <div class="mb-1.5 flex items-baseline justify-between">
+              <span class="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Quick Fill</span>
+              <span class="text-[11px] text-slate-400">overwrites the squad grid below</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <select id="inAtkLineup" class="field w-full bg-slate-900 px-2 py-2 text-sm font-medium text-slate-100" aria-label="Composition shortcut"></select>
+              <select id="inAtkTier" class="field w-full bg-slate-900 px-2 py-2 text-sm font-medium text-slate-100" aria-label="Tier mix shortcut"></select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-12 items-center gap-3 px-4 py-3">
+            <span class="col-span-12 text-sm font-medium text-slate-300 sm:col-span-3">Fill Size</span>
+            <div class="col-span-7 sm:col-span-6">
+              <input id="slAtkTotal" class="rose" type="range" min="10000" max="375000" step="5000" value="250000" aria-label="March size" />
+            </div>
+            <div class="col-span-5 sm:col-span-3">
+              <input id="inAtkTotal" type="number" min="10000" max="375000" step="5000" value="250000"
+                class="field rose num w-full px-2 py-1.5 text-right text-sm font-semibold text-rose-200" aria-label="March size value" />
+            </div>
+          </div>
+
+          <div class="px-4 py-3">
+            <div class="mb-1.5 flex items-baseline justify-between">
+              <span class="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">March Squads</span>
+              <span id="atkGridTag" class="text-[11px] text-slate-400"></span>
+            </div>
+            <div id="atkGrid"></div>
           </div>
 
           <div class="grid grid-cols-12 items-center gap-x-3 gap-y-1 px-4 py-3">
@@ -428,7 +439,7 @@
             </div>
           </div>
 
-          <div id="atkPreview" class="grid grid-cols-3 divide-x divide-slate-800"></div>
+          <div id="atkPreview" class="grid grid-cols-4 divide-x divide-slate-800"></div>
 
           <div id="matchup" class="px-4 py-3 text-xs font-medium leading-relaxed text-slate-300"></div>
         </div>
@@ -447,15 +458,14 @@
       <section class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3.5">
         <div class="font-mono text-[10px] uppercase tracking-[0.22em] text-slate-400">Engine Reference</div>
         <p class="mt-1.5 text-xs leading-relaxed text-slate-400">
-          Counter triangle: <span class="text-slate-200">Infantry &gt; Ranged &gt; Cavalry &gt; Infantry</span>. A counter doubles damage dealt against the countered type.
-          Casualties climb the tier ladder <span class="text-slate-200">across the whole army</span>: every T1 falls before any T2, then T3, T4, T5.
-          Within a tier, the front squads take the attacker's front share — 72% against a phalanx march, 55% against a wedge. A defender
-          <span class="text-slate-200">wedge</span> fields two front squads (the anchor plus the type it counters) that split that share 55/45 and both fight at full output;
-          other squads fight at 45%. An attacker wedge also gives its two spearhead types +15% damage.
-          While the <span class="text-slate-200">wall</span> stands, traps strike first, incoming damage splits between wall and traps by HP share, and the garrison takes
-          only what breaks through. The engagement runs up to 15 rounds; familiar talents fire every 3rd round. Morale drains from front-line losses and
-          throttles defender output down to 35%.
-          Defender wins by wiping the march, tripping its retreat threshold, or holding to the end; loses if morale hits 0, the front is wiped, or 60%+ of the garrison falls.
+          Counter triangle: <span class="text-slate-200">Infantry &gt; Ranged &gt; Cavalry &gt; Infantry</span>; a counter doubles damage against the countered type.
+          Each army fights in <span class="text-slate-200">lines</span>: the lineup's front type (a wedge adds the type it counters), then the other combat types, then
+          <span class="text-slate-200">siege at the very back</span>. A line is only hit once the one in front of it is gone, and a finishing blow does not carry over
+          — so a few thousand siege can keep a march from being wiped and its leader captured.
+          Inside a line, damage spreads over every troop and lower tiers die fastest. Front squads fight at full output, the rest at 70%.
+          While the <span class="text-slate-200">wall</span> stands, traps strike first; spikes, towers and logs each hit their counter type twice as hard, and siege hits traps twice as hard.
+          Both armies have <span class="text-slate-200">morale</span>; at 0% an army retreats. Up to 15 rounds; familiar talents fire every 3rd round.
+          Fitted to two real battle reports — see the calibration notes for what is confirmed and what is still estimated.
         </p>
       </section>
     </div>
