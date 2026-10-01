@@ -36,22 +36,22 @@
         </a>
       </div>
 
-      <div class="ml-auto grid w-full grid-cols-2 divide-slate-800 overflow-hidden rounded-lg border border-slate-800 bg-slate-900/60 sm:w-auto sm:grid-cols-4 sm:divide-x">
+      <div class="ml-auto hidden w-full grid-cols-2 divide-slate-800 overflow-hidden rounded-lg border border-slate-800 bg-slate-900/60 sm:grid sm:w-auto sm:grid-cols-4 sm:divide-x">
         <div class="border-b border-slate-800 px-3.5 py-2 sm:border-b-0">
           <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Troops</div>
-          <div id="hdrCount" class="num text-sm font-semibold text-slate-100">0</div>
+          <div id="hdrCount" data-hdr="count" class="num text-sm font-semibold text-slate-100">0</div>
         </div>
         <div class="border-b border-slate-800 px-3.5 py-2 sm:border-b-0">
           <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Might</div>
-          <div id="hdrMight" class="num text-sm font-semibold text-accent-300">0</div>
+          <div id="hdrMight" data-hdr="might" class="num text-sm font-semibold text-accent-300">0</div>
         </div>
         <div class="px-3.5 py-2">
           <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Lunar Gear</div>
-          <div id="hdrGear" class="num text-sm font-semibold text-slate-100">0</div>
+          <div id="hdrGear" data-hdr="gear" class="num text-sm font-semibold text-slate-100">0</div>
         </div>
         <div class="px-3.5 py-2">
           <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Formation</div>
-          <div id="hdrForm" class="text-sm font-semibold text-accent-300">Infantry</div>
+          <div id="hdrForm" data-hdr="form" class="text-sm font-semibold text-accent-300">Infantry</div>
         </div>
       </div>
     </div>
@@ -59,6 +59,25 @@
 </header>
 
 <main class="mx-auto max-w-[1500px] px-4 pb-28 pt-5 lg:pb-8">
+  <!-- phones: the stats scroll with the page; only the title bar stays pinned -->
+  <div class="mb-5 grid w-full grid-cols-2 divide-slate-800 overflow-hidden rounded-lg border border-slate-800 bg-slate-900/60 sm:hidden">
+    <div class="border-b border-slate-800 px-3.5 py-2 sm:border-b-0">
+      <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Troops</div>
+      <div data-hdr="count" class="num text-sm font-semibold text-slate-100">0</div>
+    </div>
+    <div class="border-b border-slate-800 px-3.5 py-2 sm:border-b-0">
+      <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Might</div>
+      <div data-hdr="might" class="num text-sm font-semibold text-accent-300">0</div>
+    </div>
+    <div class="px-3.5 py-2">
+      <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Lunar Gear</div>
+      <div data-hdr="gear" class="num text-sm font-semibold text-slate-100">0</div>
+    </div>
+    <div class="px-3.5 py-2">
+      <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Formation</div>
+      <div data-hdr="form" class="text-sm font-semibold text-accent-300">Infantry</div>
+    </div>
+  </div>
   <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
 
     <!-- ══════════════════════ LEFT COLUMN ══════════════════════ -->
@@ -127,7 +146,7 @@
                 class="field num w-full px-2 py-1.5 text-right text-[13px] font-semibold text-slate-100" aria-label="Wall max HP" />
             </label>
           </div>
-          <div class="mt-2 grid grid-cols-3 gap-2">
+          <div class="mt-2 grid grid-cols-3 items-end gap-2">
             <label class="block">
               <span class="mb-1 block font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Spikes · vs Cav</span>
               <input id="inTrapSpk" data-trap="spk" type="number" min="0" step="1000" value="42084"

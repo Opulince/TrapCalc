@@ -64,6 +64,8 @@ const STAT_COLS = [
 
 /* ═══════════════════════════ UTIL ═══════════════════════════ */
 const $ = (id) => document.getElementById(id);
+// the summary stats appear twice: pinned in the header on wider screens, in the page on phones
+const setHdr = (key, text) => document.querySelectorAll('[data-hdr="' + key + '"]').forEach((el) => { el.textContent = text; });
 const n0 = (v) => Math.round(v).toLocaleString('en-US');
 
 function compact(v) {
@@ -243,8 +245,8 @@ function renderTroops() {
   const tc = totalCount();
   $('sumCount').textContent   = n0(tc);
   $('sumMight').textContent   = n0(totalMight());
-  $('hdrCount').textContent   = compact(tc);
-  $('hdrMight').textContent   = compact(totalMight());
+  setHdr('count', compact(tc));
+  setHdr('might', compact(totalMight()));
   $('sumFront').textContent   = compact(typeCountOf(state.def.formation)) + ' ' + TYPE[state.def.formation].short;
   $('sumCushion').textContent = pctTxt(tierCount('t1') + tierCount('t2') + tierCount('t3'), tc, 1);
 }
@@ -258,7 +260,7 @@ function renderLunar() {
   $('costStone').textContent = compact(t5 * T5_COST.stone);
   $('costOre').textContent   = compact(t5 * T5_COST.ore);
   $('costGems').textContent  = compact(t5 * T5_COST.gear * T5_COST.gemsPerGear);
-  $('hdrGear').textContent   = compact(t5 * T5_COST.gear);
+  setHdr('gear', compact(t5 * T5_COST.gear));
 }
 
 const trapTotal = () => TRAP_KEYS.reduce((s, k) => s + state.def.wall.traps[k], 0);
@@ -294,7 +296,7 @@ function renderFormation() {
   const f = TYPE[state.def.formation];
   const st = STANCE[state.def.stance];
   const leads = leadTypes(state.def.formation, state.def.stance);
-  $('hdrForm').textContent = f.short + ' ' + st.label;
+  setHdr('form', f.short + ' ' + st.label);
   $('formTag').textContent = f.name + ' ' + st.label;
 
   const lines = battleLines(state.def.formation, state.def.stance);
