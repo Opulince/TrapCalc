@@ -4,68 +4,16 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Lords Mobile — Solo Trap &amp; Rally Defense Simulator</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = {
-    darkMode: 'class',
-    theme: {
-      extend: {
-        colors: {
-          accent: {
-            50:'#ecfeff',100:'#cffafe',200:'#a5f3fc',300:'#67e8f9',400:'#22d3ee',
-            500:'#06b6d4',600:'#0891b2',700:'#0e7490',800:'#155e75',900:'#164e63',950:'#083344'
-          }
-        },
-        fontFamily: {
-          sans: ['ui-sans-serif','system-ui','-apple-system','Segoe UI','Roboto','Helvetica Neue','Arial','sans-serif'],
-          mono: ['ui-monospace','SFMono-Regular','Menlo','Consolas','monospace']
-        }
-      }
-    }
-  };
-</script>
-<style>
-  html { -webkit-text-size-adjust: 100%; }
-  body { background: #020617; }
-  .num { font-variant-numeric: tabular-nums; }
-
-  input[type=range] {
-    -webkit-appearance: none; appearance: none; background: transparent;
-    width: 100%; height: 20px; cursor: pointer; --thumb: #06b6d4;
-  }
-  input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; background: #1e293b; }
-  input[type=range]::-moz-range-track { height: 4px; border-radius: 999px; background: #1e293b; }
-  input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none; appearance: none; margin-top: -6px;
-    width: 16px; height: 16px; border-radius: 999px; background: var(--thumb);
-    border: 3px solid #020617; box-shadow: 0 0 0 1px var(--thumb);
-  }
-  input[type=range]::-moz-range-thumb {
-    width: 14px; height: 14px; border-radius: 999px; background: var(--thumb);
-    border: 3px solid #020617; box-shadow: 0 0 0 1px var(--thumb);
-  }
-  input[type=range].rose { --thumb: #f43f5e; }
-
-  input[type=number] { -moz-appearance: textfield; }
-  input[type=number]::-webkit-outer-spin-button,
-  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-
-  .field {
-    background: transparent; border: 1px solid #1e293b; border-radius: 6px;
-    outline: none; transition: border-color .15s, box-shadow .15s;
-  }
-  .field:focus { border-color: #06b6d4; box-shadow: 0 0 0 1px rgba(6,182,212,.35); }
-  .field.rose:focus { border-color: #f43f5e; box-shadow: 0 0 0 1px rgba(244,63,94,.35); }
-
-  ::-webkit-scrollbar { width: 9px; height: 9px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 999px; }
-  ::-webkit-scrollbar-thumb:hover { background: #334155; }
-
-  .bar { transition: width .5s cubic-bezier(.22,1,.36,1); }
-  .fade { animation: fade .3s ease-out both; }
-  @keyframes fade { from { opacity:0; transform: translateY(5px); } to { opacity:1; transform:none; } }
-</style>
+<meta name="description" content="Free Lords Mobile trap simulator. Model solo marches and full rallies against your garrison, wall and traps, and see exactly which tiers die." />
+<link rel="canonical" href="https://lords-trap-sim.pages.dev/" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lords-trap-sim.pages.dev/" />
+<meta property="og:title" content="Lords Mobile Trap Simulator" />
+<meta property="og:description" content="Model solo marches and rallies against your trap. See which tiers die, what your wall changes, and whether you hold." />
+<meta property="og:image" content="https://lords-trap-sim.pages.dev/assets/og.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%2338bdf8%27 stroke-width=%271.8%27%3E%3Cpath d=%27M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z%27/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="assets/app.css" />
 </head>
 <body class="min-h-screen font-sans text-slate-200 antialiased selection:bg-accent-500/30">
 
@@ -81,6 +29,11 @@
           <h1 class="truncate text-sm font-semibold tracking-tight text-slate-50 sm:text-base">Solo Trap &amp; Rally Defense Simulator</h1>
           <p class="truncate font-mono text-[10px] uppercase tracking-[0.22em] text-slate-400">Lords Mobile · Combat Lab</p>
         </div>
+        <a class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-amber-400/40 bg-amber-400/10 px-2.5 py-1.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-400/20"
+           href="https://ko-fi.com/opulince" rel="noopener" target="_blank">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4" aria-hidden="true"><path d="M4 8h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8z"/><path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8 3v2M12 3v2"/></svg>
+          Buy me a coffee
+        </a>
       </div>
 
       <div class="ml-auto grid w-full grid-cols-2 divide-slate-800 overflow-hidden rounded-lg border border-slate-800 bg-slate-900/60 sm:w-auto sm:grid-cols-4 sm:divide-x">
@@ -506,6 +459,17 @@
       </section>
     </div>
   </div>
+  <footer class="mx-auto mt-8 max-w-[1500px] border-t border-slate-800 px-4 py-6 text-xs text-slate-400">
+    <p>
+      Free, no signup, no paywall. If this saved your troops,
+      <a class="font-semibold text-accent-300 underline-offset-2 hover:underline"
+         href="https://ko-fi.com/opulince" rel="noopener" target="_blank">buy me a coffee</a>.
+    </p>
+    <p class="mt-2">
+      <a class="hover:text-slate-200" href="about">About &amp; how it's calibrated</a> ·
+      <a class="hover:text-slate-200" href="privacy">Privacy</a>
+    </p>
+  </footer>
 </main>
 
 <div class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-800 bg-slate-950/95 p-3 backdrop-blur-xl lg:hidden" style="padding-bottom:calc(0.75rem + env(safe-area-inset-bottom));">

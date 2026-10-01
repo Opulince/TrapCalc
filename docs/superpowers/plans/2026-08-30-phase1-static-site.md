@@ -133,7 +133,7 @@ Expected: `phase-1`. All later tasks commit here.
   "type": "module",
   "scripts": {
     "build": "tailwindcss -i ./src/input.css -o ./assets/app.css --minify",
-    "test": "node --test test/",
+    "test": "node --test test/*.test.js",
     "deploy": "npm run build && wrangler pages deploy ."
   },
   "devDependencies": {
@@ -483,10 +483,11 @@ The v4 `@theme` block replaces the old inline `tailwind.config`. `darkMode: 'cla
 ```css
 @import "tailwindcss";
 
-@source "../index.html";
-@source "../about.html";
-@source "../privacy.html";
-@source "../assets/ui.js";
+/* Globs, not explicit paths: the HTML pages do not exist until Task 6, and an explicit
+   @source to a missing file can throw. These patterns match whatever exists now and pick
+   the pages up automatically once they land. */
+@source "../*.html";
+@source "../assets/*.js";
 
 @theme {
   --color-accent-50:  #ecfeff;
@@ -649,7 +650,7 @@ test('robots.txt and sitemap.xml are consistent', () => {
   const sitemap = read('sitemap.xml');
   assert.match(robots, /Sitemap: https:\/\/\S+\/sitemap\.xml/);
   for (const route of ['/', '/about', '/privacy']) {
-    assert.ok(sitemap.includes(`<loc>https://lm-trap-sim.pages.dev${route}</loc>`),
+    assert.ok(sitemap.includes(`<loc>https://lords-trap-sim.pages.dev${route}</loc>`),
       `sitemap missing ${route}`);
   }
 });
@@ -673,12 +674,12 @@ Take `lords-mobile-trap-simulator.html` and make exactly these changes:
 
 ```html
 <meta name="description" content="Free Lords Mobile trap simulator. Model solo marches and full rallies against your garrison, wall and traps, and see exactly which tiers die." />
-<link rel="canonical" href="https://lm-trap-sim.pages.dev/" />
+<link rel="canonical" href="https://lords-trap-sim.pages.dev/" />
 <meta property="og:type" content="website" />
-<meta property="og:url" content="https://lm-trap-sim.pages.dev/" />
+<meta property="og:url" content="https://lords-trap-sim.pages.dev/" />
 <meta property="og:title" content="Lords Mobile Trap Simulator" />
 <meta property="og:description" content="Model solo marches and rallies against your trap. See which tiers die, what your wall changes, and whether you hold." />
-<meta property="og:image" content="https://lm-trap-sim.pages.dev/assets/og.png" />
+<meta property="og:image" content="https://lords-trap-sim.pages.dev/assets/og.png" />
 <meta name="twitter:card" content="summary_large_image" />
 <link rel="stylesheet" href="/assets/app.css" />
 ```
@@ -696,7 +697,7 @@ Take `lords-mobile-trap-simulator.html` and make exactly these changes:
     <p>
       Free, no signup, no paywall. If this saved your troops,
       <a class="font-semibold text-accent-300 underline-offset-2 hover:underline"
-         href="https://ko-fi.com/YOUR_KOFI_HANDLE" rel="noopener" target="_blank">buy me a coffee</a>.
+         href="https://ko-fi.com/opulince" rel="noopener" target="_blank">buy me a coffee</a>.
     </p>
     <p class="mt-2">
       <a class="hover:text-slate-200" href="/about">About &amp; how it's calibrated</a> ·
@@ -705,7 +706,7 @@ Take `lords-mobile-trap-simulator.html` and make exactly these changes:
   </footer>
 ```
 
-Replace `YOUR_KOFI_HANDLE` with the real Ko-fi handle. If there is no Ko-fi account yet, create one first — a dead link is worse than no link.
+Replace `opulince` with the real Ko-fi handle. If there is no Ko-fi account yet, create one first — a dead link is worse than no link.
 
 - [ ] **Step 4: Create `about.html`**
 
@@ -736,7 +737,7 @@ Same `<head>` pattern as `index.html` with its own title/description/canonical/O
     <p class="mt-8 text-sm text-slate-300">
       Free, no signup, no paywall. If it saved your troops,
       <a class="font-semibold text-accent-300 underline-offset-2 hover:underline"
-         href="https://ko-fi.com/YOUR_KOFI_HANDLE" rel="noopener" target="_blank">buy me a coffee</a>.
+         href="https://ko-fi.com/opulince" rel="noopener" target="_blank">buy me a coffee</a>.
     </p>
     <p class="mt-6 text-xs text-slate-400">
       <a class="hover:text-slate-200" href="/">← Back to the simulator</a> ·
@@ -832,7 +833,7 @@ git commit -m "feat: split the simulator into index, about and privacy pages"
 User-agent: *
 Allow: /
 
-Sitemap: https://lm-trap-sim.pages.dev/sitemap.xml
+Sitemap: https://lords-trap-sim.pages.dev/sitemap.xml
 ```
 
 - [ ] **Step 2: Create `sitemap.xml`**
@@ -840,9 +841,9 @@ Sitemap: https://lm-trap-sim.pages.dev/sitemap.xml
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://lm-trap-sim.pages.dev/</loc><priority>1.0</priority></url>
-  <url><loc>https://lm-trap-sim.pages.dev/about</loc><priority>0.5</priority></url>
-  <url><loc>https://lm-trap-sim.pages.dev/privacy</loc><priority>0.3</priority></url>
+  <url><loc>https://lords-trap-sim.pages.dev/</loc><priority>1.0</priority></url>
+  <url><loc>https://lords-trap-sim.pages.dev/about</loc><priority>0.5</priority></url>
+  <url><loc>https://lords-trap-sim.pages.dev/privacy</loc><priority>0.3</priority></url>
 </urlset>
 ```
 
@@ -850,7 +851,13 @@ Sitemap: https://lm-trap-sim.pages.dev/sitemap.xml
 
 Discord is the primary distribution channel and unfurls every link, so this is not decoration. Capture the simulator with results showing at 1200×630 and save as `assets/og.png`.
 
-Capture it with headless Chrome, which needs no extra dependency:
+Capture it with headless Chrome. **It must be served over HTTP, not `file://`** — the pages
+reference `/assets/...` with absolute paths, which resolve to the filesystem root under
+`file://` and leave the page unstyled and scriptless. Start a server first:
+
+```bash
+python -m http.server 8731 &
+```
 
 ```bash
 npx --yes puppeteer-core --version 2>/dev/null || npm install --no-save puppeteer
@@ -860,7 +867,7 @@ const puppeteer=require('puppeteer');
   const b=await puppeteer.launch();
   const p=await b.newPage();
   await p.setViewport({width:1200,height:630});
-  await p.goto('file://'+process.cwd().replace(/\\/g,'/')+'/index.html');
+  await p.goto('http://localhost:8731/index.html', {waitUntil:'networkidle0'});
   await p.click('#btnSimMobile').catch(()=>{});
   await new Promise(r=>setTimeout(r,600));
   await p.screenshot({path:'assets/og.png'});
@@ -877,14 +884,20 @@ file assets/og.png && du -h assets/og.png
 
 Expected: `PNG image data, 1200 x 630`, size under 300K.
 
-- [ ] **Step 4: Add Cloudflare Web Analytics to all three pages**
+- [ ] **Step 4: Leave analytics to the Pages project toggle**
 
-Cookieless, so it needs no consent banner. Insert immediately before `</body>` on each page, replacing the token after creating the site in the Cloudflare dashboard:
+Do **not** hand-insert a beacon snippet. Cloudflare Pages can enable Web Analytics on the
+project itself and inject the beacon automatically, which avoids hardcoding a token into three
+files. This is switched on in Task 8 after the first deploy exists.
 
-```html
-<script defer src="https://static.cloudflareinsights.com/beacon.min.js"
-        data-cf-beacon='{"token": "YOUR_CF_BEACON_TOKEN"}'></script>
+Confirm no page carries a beacon script yet:
+
+```bash
+grep -c "cloudflareinsights" index.html about.html privacy.html
 ```
+
+Expected: `0` for all three. `privacy.html` already discloses Cloudflare Web Analytics, which
+stays accurate — the toggle is what turns it on.
 
 - [ ] **Step 5: Run the full suite**
 
@@ -903,71 +916,35 @@ git commit -m "feat: add robots, sitemap, OG card and cookieless analytics"
 
 ---
 
-### Task 8: Deploy to Cloudflare Pages and verify the budget
+### Task 8: Deploy to Hostinger (own subdomain)
+
+**Decision change:** hosting moved from Cloudflare Pages to an existing Hostinger plan, on its
+own subdomain. A subdomain means the site is served from its document root, so the existing
+root-absolute `/assets/...` paths keep working with no changes.
+
+Three consequences vs the Cloudflare plan:
+1. **Clean URLs are not automatic.** Pages mapped `/about` to `about.html`; LiteSpeed does not.
+   Requires `.htaccess`.
+2. **No Web Analytics toggle.** Cloudflare Web Analytics still works on any host via its beacon
+   snippet, but it now needs the token after all. Deferred until the site is live.
+3. **Upload is manual** via hPanel File Manager, so the deliverable is a zip.
 
 **Files:**
-- Modify: none (deployment only)
+- Create: `.htaccess`, `scripts/stage.mjs` (modify to include `.htaccess`)
+- Modify: `package.json` (drop wrangler, add zip packaging)
+- Modify: the 15 hardcoded `lords-trap-sim.pages.dev` references once the real subdomain is known
 
-**Interfaces:**
-- Consumes: the whole built site.
-- Produces: a live `https://lm-trap-sim.pages.dev`.
+- [ ] **Step 1: Add `.htaccess` for clean URLs and static-asset headers**
 
-- [ ] **Step 1: Deploy**
+- [ ] **Step 2: Include `.htaccess` in the staged `dist/` and add a `package` script producing `dist.zip`**
 
-```bash
-npx wrangler pages deploy . --project-name=lm-trap-sim
-```
+- [ ] **Step 3: Swap all 15 hardcoded URLs to the real subdomain** (blocked on the subdomain name)
 
-This prompts for a browser login on first run. Expected output ends with a deployment URL.
+- [ ] **Step 4: Upload via hPanel File Manager** — user action: upload `dist.zip` into the
+  subdomain's document root, extract, delete the zip.
 
-- [ ] **Step 2: Verify every route serves**
-
-```bash
-for r in "" about privacy sitemap.xml robots.txt assets/app.css assets/ui.js assets/engine.js; do
-  printf "%-22s %s\n" "/$r" "$(curl -s -o /dev/null -w '%{http_code}' https://lm-trap-sim.pages.dev/$r)"
-done
-```
-
-Expected: `200` for all eight.
-
-- [ ] **Step 3: Confirm the runtime CDN is gone from production**
-
-```bash
-curl -s https://lm-trap-sim.pages.dev/ | grep -c "cdn.tailwindcss.com"
-```
-
-Expected: `0`.
-
-- [ ] **Step 4: Check the JS budget against the constraint**
-
-```bash
-for f in assets/ui.js assets/engine.js assets/app.css; do
-  printf "%-20s %s bytes\n" "$f" "$(curl -s https://lm-trap-sim.pages.dev/$f | wc -c)"
-done
-```
-
-Expected: `ui.js` + `engine.js` combined **under 100,000 bytes**. If over, the extraction pulled in something it should not have.
-
-- [ ] **Step 5: Run a mobile Lighthouse audit**
-
-```bash
-npx lighthouse https://lm-trap-sim.pages.dev/ --preset=desktop --quiet --chrome-flags="--headless" --only-categories=performance --form-factor=mobile --throttling-method=simulate --output=json --output-path=./lighthouse.json
-node -e "const r=require('./lighthouse.json');console.log('LCP', r.audits['largest-contentful-paint'].displayValue, '| perf', r.categories.performance.score*100)"
-```
-
-Expected: LCP **under 2.5s**, performance score 90+. The CDN removal is what buys this; if LCP is still over budget, the OG image or the CSS is the next thing to check.
-
-- [ ] **Step 6: Verify the simulator works with an ad blocker enabled**
-
-Open the live URL in a browser with uBlock Origin active. Run a simulation. Expected: results render normally, no console errors, no prompts about the blocker.
-
-- [ ] **Step 7: Commit and tag**
-
-```bash
-git add -A
-git commit -m "chore: phase 1 deployment verified"
-git tag phase-1
-```
+- [ ] **Step 5: Verify live** — all three routes 200, clean URLs resolve, assets load, a
+  simulation runs, and `curl` confirms `/docs` and `/test` are absent.
 
 ---
 
@@ -992,6 +969,9 @@ git tag phase-1
 
 Two deliberate deviations, both recorded above: **guide placeholder routes are dropped** (Phase 2 owns guides; empty routes are the thin content that gets AdSense rejected), and **the engine/UI split was added** (not named in the spec, but required — the CDN removal forces the JS out of the HTML anyway, and a DOM-free engine is what makes the spec's own testing requirement achievable, plus it is the seam Phase 3's regression corpus plugs into).
 
-**Placeholder scan:** Three values are intentionally left for the implementer because they cannot be known until an external account exists — `YOUR_KOFI_HANDLE`, `YOUR_CF_BEACON_TOKEN`, and the `lm-trap-sim` project name if taken. Each is called out at its use site with what to do. No "TBD", no "add error handling", no "similar to Task N".
+**Placeholder scan:** None remain. The Ko-fi handle (`opulince`) and Pages project name
+(`lords-trap-sim`) are now filled in throughout. The analytics beacon token was eliminated
+rather than deferred — Task 7 leaves analytics to the Pages project toggle, switched on in
+Task 8. No "TBD", no "add error handling", no "similar to Task N".
 
 **Type consistency:** `runSimulation(cfg)` returns the same field names the Task 2 test asserts (`outcome`, `atkLost`, `defLost`, `defRows[{tier,type,start,lost,surv}]`, `rounds`). `effStat(cfg, type, col)` has the same argument order in Tasks 3 and 4. `dominantType(cfg)` is defined in Task 3 and consumed in Task 4. `attackerTierShare(cfg)` returns `.mix` in both.

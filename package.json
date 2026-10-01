@@ -4,7 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test \"test/*.test.js\"",
+    "build": "tailwindcss -i ./src/input.css -o ./assets/app.css --minify",
+    "test": "node --test test/*.test.js",
+    "stage": "node scripts/stage.mjs",
+    "package": "npm run build && npm run stage && powershell -Command \"Compress-Archive -Path dist/* -DestinationPath dist.zip -Force\"",
     "calibrate": "node scripts/calibrate.mjs"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.0.0",
+    "tailwindcss": "^4.0.0"
   }
 }
