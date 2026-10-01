@@ -21,7 +21,7 @@ const DEF_DEFAULTS = {
   },
   formation:'cav', stance:'phalanx',
   wall: { maxHp:2000000, pct:100, traps:200000, atk:60.84, def:66.92 },
-  infirmary:300000, dp:30, retreat:38, familiar:20
+  infirmary:300000, sanctuary:0, retreat:38, familiar:20
 };
 
 const state = {
@@ -438,8 +438,9 @@ function renderResults(R) {
         <div class="num text-sm font-semibold text-slate-100">${R.rounds}</div>
       </div>
       <div class="px-4 py-2.5">
-        <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Enemy Killed</div>
+        <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Enemy Losses</div>
         <div class="num text-sm font-semibold text-accent-300">${compact(R.atkLost)}</div>
+        <div class="num text-[11px] text-slate-400">${compact(R.atkDead)} dead · ${compact(R.atkWounded)} wounded</div>
       </div>
       <div class="px-4 py-2.5">
         <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Own Losses</div>
@@ -492,6 +493,7 @@ function renderResults(R) {
       <div class="px-4 py-2.5">
         <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Inflicted Losses</div>
         <div class="num text-sm font-semibold text-accent-300">${n0(R.atkLost)} · ${compact(R.atkMightLost)} might</div>
+        <div class="num text-[11px] text-slate-400">${n0(R.atkDead)} dead · ${n0(R.atkWounded)} wounded (60/40 rule)</div>
       </div>
       <div class="px-4 py-2.5">
         <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Survived Troops</div>
@@ -515,9 +517,9 @@ function renderResults(R) {
           <tr class="font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">
             <th class="py-2 text-left font-medium">Unit</th>
             <th class="py-2 text-right font-medium">Sent</th>
-            <th class="py-2 text-right font-medium">Killed</th>
+            <th class="py-2 text-right font-medium">Lost</th>
             <th class="py-2 text-right font-medium">Left</th>
-            <th class="py-2 text-left font-medium">Kill Rate</th>
+            <th class="py-2 text-left font-medium">Loss Rate</th>
           </tr>
         </thead>
         <tbody>
@@ -603,29 +605,31 @@ function renderResults(R) {
         <div class="text-xs text-slate-400">${pctTxt(R.wounded, R.defLost, 1)} of casualties</div>
       </div>
       <div class="px-4 py-3">
-        <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Sanctuary Overflow</div>
-        <div class="num text-base font-bold text-slate-100">${n0(R.overflow)}</div>
-        <div class="text-xs text-slate-400">beyond ward capacity</div>
+        <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Sanctuary</div>
+        <div class="num text-base font-bold text-slate-100">${n0(R.sanctuary)}</div>
+        <div class="text-xs text-slate-400">${R.sanctuaryCap > 0 ? n0(R.sanctuaryCap) + ' capacity' : 'no capacity entered'}</div>
       </div>
       <div class="px-4 py-3">
         <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Permanently Dead</div>
         <div class="num text-base font-bold text-rose-400">${n0(R.dead)}</div>
-        <div class="text-xs text-slate-400">unrecoverable</div>
+        <div class="text-xs text-slate-400">after Divine Providence</div>
       </div>
     </div>
 
     <div class="border-t border-slate-800 px-4 py-3.5">
       <div class="mb-1.5 flex items-baseline justify-between">
-        <span class="text-sm font-medium text-slate-300">Divine Providence · ${state.def.dp}%</span>
-        <span class="num text-sm font-semibold text-accent-300">${n0(R.revived)} recoverable</span>
+        <span class="text-sm font-medium text-slate-300">Infirmary Overflow · ${n0(R.overflow)}</span>
+        <span class="num text-sm font-semibold text-accent-300">${n0(R.sanctuary + R.divine)} recoverable</span>
       </div>
       <div class="flex h-2 overflow-hidden rounded-full bg-slate-800">
-        <div class="bar h-full bg-accent-500" style="width:${clamp(pct(R.revived, R.overflow || 1), 0, 100)}%"></div>
+        <div class="bar h-full bg-accent-500" style="width:${clamp(pct(R.sanctuary, R.overflow || 1), 0, 100)}%"></div>
+        <div class="bar h-full bg-amber-400" style="width:${clamp(pct(R.divine, R.overflow || 1), 0, 100)}%"></div>
         <div class="bar h-full bg-rose-500" style="width:${clamp(pct(R.dead, R.overflow || 1), 0, 100)}%"></div>
       </div>
-      <div class="mt-1.5 flex justify-between text-xs text-slate-400">
-        <span>Revived ${compact(R.revived)}</span><span>Lost forever ${compact(R.dead)}</span>
+      <div class="mt-1.5 flex flex-wrap justify-between gap-x-3 text-xs text-slate-400">
+        <span>Sanctuary ${compact(R.sanctuary)}</span><span>Divine Providence ${compact(R.divine)}</span><span>Lost forever ${compact(R.dead)}</span>
       </div>
+      <p class="mt-2 text-xs text-slate-400">Overflow beyond the infirmary: 80% goes to the Sanctuary while it has space; of the rest, Divine Providence revives 10% free.</p>
     </div>
 
     <div class="grid grid-cols-1 divide-y divide-slate-800 border-t border-slate-800 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
@@ -798,7 +802,7 @@ $('inAtkHp').addEventListener('input', (e) => {
 $('inAtkLineup').addEventListener('change', (e) => { state.atk.lineup = e.target.value; renderAttacker(); });
 $('inAtkTier').addEventListener('change', (e) => { state.atk.tierMix = e.target.value; renderAttacker(); });
 $('inInfirmary').addEventListener('input', (e) => { state.def.infirmary = Math.max(0, Number(e.target.value) || 0); });
-$('inDP').addEventListener('input', (e) => { state.def.dp = clamp(Number(e.target.value) || 0, 0, 100); });
+$('inSanctuary').addEventListener('input', (e) => { state.def.sanctuary = Math.max(0, Number(e.target.value) || 0); });
 
 $('btnResetTroops').addEventListener('click', () => {
   TIER_KEYS.forEach((tk) => TYPE_KEYS.forEach((yk) => { state.troops[tk][yk] = TIER[tk].base; }));
@@ -824,7 +828,7 @@ function canonicalValue(el) {
     inAtkTotal: state.atk.total, slAtkTotal: state.atk.total,
     inAtkStat: state.atk.stat, slAtkStat: state.atk.stat,
     inAtkDef: state.atk.def, inAtkHp: state.atk.hp,
-    inInfirmary: state.def.infirmary, inDP: state.def.dp
+    inInfirmary: state.def.infirmary, inSanctuary: state.def.sanctuary
   }[el.id];
 }
 function syncInput(el) {

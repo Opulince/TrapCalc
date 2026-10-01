@@ -24,7 +24,7 @@ const REPORT_2 = {
     stance: 'phalanx',
     wall: { maxHp: 2000000, pct: 0, traps: 0, atk: 60.84, def: 66.92 },
     infirmary: 500000,
-    dp: 30,
+    sanctuary: 0,
     retreat: 100,
     familiar: 20
   },

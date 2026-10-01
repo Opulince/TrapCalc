@@ -8,9 +8,9 @@ export const TIER_KEYS = ['t1', 't2', 't3', 't4', 't5'];
 export const TYPE_KEYS = ['inf', 'rng', 'cav'];
 
 export const TIER = {
-  t1: { key:'t1', name:'T1', role:'Chaff Layer',   might:4,  hp:10,  atk:10,  max:30000000, step:10000, base:0       },
+  t1: { key:'t1', name:'T1', role:'Chaff Layer',   might:2,  hp:10,  atk:10,  max:30000000, step:10000, base:0       },
   t2: { key:'t2', name:'T2', role:'Cushion Layer', might:8,  hp:20,  atk:20,  max:30000000, step:10000, base:1500000 },
-  t3: { key:'t3', name:'T3', role:'Filler Layer',  might:20, hp:60,  atk:60,  max:10000000, step:10000, base:0       },
+  t3: { key:'t3', name:'T3', role:'Filler Layer',  might:24, hp:60,  atk:60,  max:10000000, step:10000, base:0       },
   t4: { key:'t4', name:'T4', role:'Core Layer',    might:36, hp:100, atk:100, max:10000000, step:5000,  base:400000  },
   t5: { key:'t5', name:'T5', role:'Lunar Layer',   might:48, hp:160, atk:160, max:600000,  step:2500,  base:100000  }
 };
@@ -74,6 +74,18 @@ export const TIER_MIX = {
 export const TRAP = { hp:150, atk:120 };        // per-trap base, estimated
 const WALL_HP_SCALE = 80;                // game Wall HP -> engine EHP
 const TRAP_VOLLEY = 1.00;                // pre-battle free strike, in rounds of trap output
+
+// Recovery rules (Lords Mobile wiki: Infirmary, Sanctuary; Guides by T):
+//  · Attackers fighting outside their turf: 60% of losses are wounded (highest tiers first,
+//    while their infirmary has room), 40% die. Report 2026-08-28 matches exactly:
+//    24,139 wounded / 16,093 dead of 40,232 = 60.0%.
+//  · Defenders in their turf: every casualty is wounded while the infirmary has room.
+//  · Overflow beyond the infirmary dies, except 80% (when defending) goes to the Sanctuary
+//    if it has space. Divine Providence is a free-revive 10% slice of the dead.
+// The attacker's infirmary space is not an input, so it is assumed to have room.
+export const ATK_WOUNDED_SHARE = 0.60;
+export const SANCTUARY_DEF_SHARE = 0.80;
+export const DIVINE_PROVIDENCE_SHARE = 0.10;
 
 export const T5_COST = { food:18000, wood:14000, stone:6000, ore:3600, gear:1, gemsPerGear:12 };
 export const HEAL_RATIO = 0.30;
@@ -431,9 +443,24 @@ export function runSimulation(cfg) {
   let atkLost = 0, atkSurv = 0, atkStart = 0, atkMightLost = 0;
   atkUnits.forEach((u) => {
     const lost = Math.max(0, u.start - u.count);
-    atkRows.push({ tier:u.tier, type:u.type, start:u.start, lost, surv:Math.max(0, u.count) });
+    atkRows.push({ tier:u.tier, type:u.type, start:u.start, lost, surv:Math.max(0, u.count), wounded:0, dead:0 });
     atkLost += lost; atkSurv += Math.max(0, u.count); atkStart += u.start; atkMightLost += lost * TIER[u.tier].might;
   });
+  // 60% of the march's losses are wounded, and the wounded slots go to the highest tiers
+  // first; within a tier they are shared in proportion to each squad's losses.
+  let atkWoundQuota = atkLost * ATK_WOUNDED_SHARE;
+  TIER_KEYS.slice().reverse().forEach((tk) => {
+    const rows = atkRows.filter((r) => r.tier === tk);
+    const lostTier = rows.reduce((s, r) => s + r.lost, 0);
+    const take = Math.min(atkWoundQuota, lostTier);
+    atkWoundQuota -= take;
+    rows.forEach((r) => {
+      r.wounded = lostTier > 0 ? take * (r.lost / lostTier) : 0;
+      r.dead = r.lost - r.wounded;
+    });
+  });
+  const atkWounded = atkRows.reduce((s, r) => s + r.wounded, 0);
+  const atkDead = atkLost - atkWounded;
 
   let capacity = Math.max(0, S.def.infirmary);
   const ward = {}, overflowByTier = {};
@@ -444,12 +471,18 @@ export function runSimulation(cfg) {
   });
   const wounded = TIER_KEYS.reduce((s, tk) => s + ward[tk], 0);
   const overflow = TIER_KEYS.reduce((s, tk) => s + overflowByTier[tk], 0);
-  const dpRate = clamp(S.def.dp, 0, 100) / 100;
-  const revived = overflow * dpRate;
-  const dead = overflow - revived;
+  // Overflow: 80% goes to the Sanctuary while it has space; the rest dies.
+  const sanctuaryCap = Math.max(0, S.def.sanctuary || 0);
+  const sanctuary = Math.min(overflow * SANCTUARY_DEF_SHARE, sanctuaryCap);
+  const fallen = overflow - sanctuary;
+  // Divine Providence revives a free 10% of the fallen; the rest is gone for good.
+  const divine = fallen * DIVINE_PROVIDENCE_SHARE;
+  const dead = fallen - divine;
+  // tier mix of the overflow is unknown inside the sanctuary, so it is shared pro rata
+  const deadRate = overflow > 0 ? dead / overflow : 0;
 
   const t5Wounded = ward.t5;
-  const t5Dead = overflowByTier.t5 * (1 - dpRate);
+  const t5Dead = overflowByTier.t5 * deadRate;
   const bill = (n, ratio) => ({
     gear: n * T5_COST.gear, food: n * T5_COST.food * ratio, wood: n * T5_COST.wood * ratio,
     stone: n * T5_COST.stone * ratio, ore: n * T5_COST.ore * ratio
@@ -458,8 +491,8 @@ export function runSimulation(cfg) {
   return {
     outcome, lossReason, rounds:round, formation, log, morale,
     defRows, defLost, defSurv, mightLost, armyStart,
-    atkRows, atkLost, atkSurv, atkStart, atkMightLost,
-    ward, overflowByTier, wounded, overflow, revived, dead,
+    atkRows, atkLost, atkSurv, atkStart, atkMightLost, atkWounded, atkDead,
+    ward, overflowByTier, wounded, overflow, sanctuary, sanctuaryCap, divine, dead,
     healCost: bill(t5Wounded, HEAL_RATIO), rebuildCost: bill(t5Dead, 1),
     t5Wounded, t5Dead, burstRounds,
     wallStood, wallStartHp:wallStartHp / WALL_HP_SCALE, wallHpLeft:wallHp / WALL_HP_SCALE, wallMaxHp,
