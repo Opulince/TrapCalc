@@ -79,14 +79,14 @@ test('no ad or consent scripts ship in phase 1', () => {
   for (const p of PAGES) assert.ok(!banned.test(read(p)), `${p} contains ad code`);
 });
 
-test('every /assets/ reference in the pages exists on disk', () => {
+test('every assets/ reference in the pages exists on disk', () => {
   const root = new URL('../', import.meta.url);
   for (const p of PAGES) {
     const html = read(p);
-    const refs = [...html.matchAll(/(?:href|src)="(\/assets\/[^"]+)"/g)].map((m) => m[1]);
-    assert.ok(refs.length > 0, `${p} has no /assets/ references to check`);
+    const refs = [...html.matchAll(/(?:href|src)="(assets\/[^"]+)"/g)].map((m) => m[1]);
+    assert.ok(refs.length > 0, `${p} has no assets/ references to check`);
     for (const ref of refs) {
-      const fileUrl = new URL(`.${ref}`, root);
+      const fileUrl = new URL(ref, root);
       assert.ok(existsSync(fileUrl), `${p} references ${ref}, which does not exist`);
     }
   }
