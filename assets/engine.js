@@ -82,11 +82,11 @@ export const TIER_MIX = {
 //    traps pull damage off the wall and lengthen the wall fight.
 //  · A damaged wall loses HP more slowly than a full one — a CONSEQUENCE of the split
 //    above (less wall HP = smaller share of the hit), not a separate multiplier.
-// Game Wall HP is small (12,625 at the player's castle level, from the in-game table), so
-// WALL_HP_SCALE converts it into the engine's effective-HP space. It is re-expressed so the
-// default wall behaves as before; TRAP stats and the scale are still uncalibrated.
+// WALL_HP_SCALE converts the game's Wall HP into the engine's effective-HP space. Report 4: a
+// 564,835 HP wall (castle table 12,625 + defense research) fell in the first round or two, which
+// needs a scale of about 100 or less; 80 is used. TRAP stats are still uncalibrated.
 export const TRAP = { hp:150, atk:120 };        // per-trap base, estimated
-const WALL_HP_SCALE = 12673;            // game Wall HP -> engine EHP (was 80 x a 2,000,000 default)
+const WALL_HP_SCALE = 80;               // game Wall HP -> engine EHP (report 4: <= ~100)
 const TRAP_VOLLEY = 1.00;                // pre-battle free strike, in rounds of trap output
 
 // Recovery rules (Lords Mobile wiki: Infirmary, Sanctuary; Guides by T):
@@ -127,16 +127,17 @@ const COUNTER_BONUS   = 1.00;   // +100% => 2x
 
 // Tunable model constants, fitted against real battle reports (see calibration-notes.md).
 // Exported so the calibration script can sweep them; the app never changes them.
-// Fitted 2026-10-01 to reports 2 + 3 (attacker stats free per report): total squad-level
-// error 0.35, down from 0.64 for the best fit with the old ladder-style values.
+// Fitted 2026-10-01 to reports 2, 3 and 4 (attacker stats free per report): squad-level error
+// 0.01 / 0.53 / 0.01. Report 3 is the known miss (see spread).
 export const PARAMS = {
-  damageScale:   0.125,  // converts ATK into damage per round
+  damageScale:   0.075,  // converts ATK into damage per round
   bite:          0.60,   // safety rail: max share of the target's starting EHP per round
   support:       0.70,   // output of squads outside the front line
   // Inside a line: share of each hit spread over every troop equally (lower HP dies faster);
-  // the rest goes lowest tier first. Report 2 looks strict (T4 untouched), report 3 is mixed
-  // (T4 cav 61% dead while T2 cav was still 82%) — 0.9 is the best compromise, not a fit to both.
-  spread:        0.90,
+  // the rest goes lowest tier first. Reports 2 and 4 are strict (higher tiers of the front type
+  // lost exactly 0); report 3 is mixed (T4 cav 61% dead with T2 cav at 82%). Report 3 is also
+  // the only one with an attacking WEDGE — if more wedge reports mix, make this stance-dependent.
+  spread:        0,
   // Does a hit that finishes off one line carry on into the line behind it in the same
   // round? Player experience says no: a few thousand T1 siege at the back can stop a march
   // from being wiped (and its leader captured). Fits the reports equally well either way.
@@ -498,7 +499,9 @@ export function runSimulation(cfg) {
   const atkMightLost = atkRows.reduce((s, r) => s + r.lost * TIER[r.tier].might, 0);
   // 60% of the march's losses are wounded, and the wounded slots go to the highest tiers
   // first; within a tier they are shared in proportion to each squad's losses.
-  let atkWoundQuota = atkLost * ATK_WOUNDED_SHARE;
+  // Event battles (e.g. Chaos Arena): troops on both sides are wounded, never killed.
+  const noDeaths = !!S.event;
+  let atkWoundQuota = atkLost * (noDeaths ? 1 : ATK_WOUNDED_SHARE);
   TIER_KEYS.slice().reverse().forEach((tk) => {
     const rows = atkRows.filter((r) => r.tier === tk);
     const lostTier = rows.reduce((s, r) => s + r.lost, 0);
@@ -512,7 +515,7 @@ export function runSimulation(cfg) {
   const atkWounded = atkRows.reduce((s, r) => s + r.wounded, 0);
   const atkDead = atkLost - atkWounded;
 
-  let capacity = Math.max(0, num(S.def.infirmary));
+  let capacity = noDeaths ? Infinity : Math.max(0, num(S.def.infirmary));
   const ward = {}, overflowByTier = {};
   TIER_KEYS.slice().reverse().forEach((tk) => {
     const lostTier = defRows.filter((r) => r.tier === tk).reduce((s, r) => s + r.lost, 0);
@@ -542,7 +545,7 @@ export function runSimulation(cfg) {
   TRAP_KEYS.forEach((k) => { trapLeftBy[k] = traps[k]; trapLostBy[k] = Math.max(0, trapStartBy[k] - traps[k]); });
 
   return {
-    outcome, lossReason, rounds:round, formation:defFormation, log,
+    outcome, lossReason, rounds:round, formation:defFormation, log, event:noDeaths,
     morale:defMorale.value, atkMorale:atkMorale.value,
     defRows, defLost, defSurv, mightLost, armyStart,
     atkRows, atkLost, atkSurv, atkStart, atkMightLost, atkWounded, atkDead,

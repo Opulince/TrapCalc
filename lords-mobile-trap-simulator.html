@@ -154,7 +154,7 @@
             </label>
             <label class="block">
               <span class="mb-1 block font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">Wall Max HP</span>
-              <input id="inWallMax" data-wall="maxHp" type="number" min="0" step="125" value="12625"
+              <input id="inWallMax" data-wall="maxHp" type="number" min="0" step="1000" value="564835"
                 class="field num w-full px-2 py-1.5 text-right text-[13px] font-semibold text-slate-100" aria-label="Wall max HP" />
             </label>
           </div>
@@ -224,6 +224,11 @@
               class="field num w-full px-2.5 py-2 text-sm font-semibold text-slate-100" />
           </label>
         </div>
+        <label class="flex cursor-pointer items-start gap-2.5 border-t border-slate-800 px-4 py-3">
+          <input id="inEvent" type="checkbox" class="mt-0.5 h-4 w-4 accent-cyan-500" />
+          <span class="text-xs leading-relaxed text-slate-400"><span class="font-semibold text-slate-200">Event battle (no deaths)</span> — e.g. Chaos Arena:
+            every casualty on both sides is wounded, nobody dies.</span>
+        </label>
       </section>
 
       <!-- TROOP COMPOSITION -->

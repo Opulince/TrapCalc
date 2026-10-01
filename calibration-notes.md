@@ -16,14 +16,16 @@ Anything not listed here as *confirmed* is still an estimate.
   (Ranged Wedge = ranged + cavalry in front) lost only ranged and cavalry; infantry lost 0. Report
   2 fits the same rule (every loss was cavalry), which also explains its surviving T1 Archer —
   ranged, so never in the line of fire.
-- **Inside the front, lower tiers die faster but it is not strict.** Report 3: T4 cav was 61% dead
-  while T2 cav was only 82% gone; attacker T4 lost 50% while T5 lost 34% (and T4 ranged lost 50%
-  too — same tier, same rate). Report 2 looked strict (T4 cav 0 while T2 bled 23%). The two
-  reports pull in opposite directions; the model is a fitted compromise.
+- **Inside the front, lowest tier first — strictly, in 2 of 3 reports.** Report 2: T1 cav wiped,
+  T2 cav −23%, T4 cav 0. Report 4: T1 rng wiped, T2 rng −42%, T3 and T4 rng exactly 0. Report 3 is
+  the exception (T4 cav 61% dead with T2 cav at 82%; attacker T5 lost 34% with T4 at 50%) — and the
+  only one with an attacking **wedge**. The model is strict; the wedge question is open.
 - **Siege sits at the back.** Player experience: 10k T1 siege can be all that keeps a march from
   being wiped and its leader captured. The model reproduces this only if a finishing blow does
   not carry over into the next line in the same round (`PARAMS.lineSpill = false`).
 - **Morale is on both sides** (player-confirmed, NamuWiki): an army retreats at 0%.
+- **Event battles (Chaos Arena): nobody dies** on either side (player-confirmed; report 4: 378,000
+  attackers lost, all wounded, 0 dead). The app has an "Event battle" switch for this.
 - **Stats stack additively:** effective Infantry ATK = troop-type Infantry ATK + Army ATK.
   Only the **Leader Deployed** column counts.
 - **Battles are bounded** and can end with both sides holding survivors (report 1), or with one
@@ -42,7 +44,7 @@ Anything not listed here as *confirmed* is still an estimate.
   infantry, and **siege counters every trap**. Modelled; trap tiers are not.
 - **Castle Wall capacity** (in-game table, player's castle): level 25 = 125,000 traps / 12,500 Wall
   HP; the player's current level = **126,250 traps / 12,625 Wall HP** before research boosts.
-  The defense research tree raises wall and trap HP / ATK on top.
+  The defense research tree raises wall HP enormously: report 4 shows **564,835 Wall HP**.
 - **Castle Wall (researched, wiki + guides):**
   - Traps fight **only while Wall HP > 0**. At 0 HP traps are inert and the march begins
     attacking the troops inside the turf.
@@ -154,7 +156,44 @@ wall down, infirmary 500,000:
 | Attacker T5 cav | 45,035 | 38,784 | −13.9% |
 | Attacker total | 105,025 | 100,300 | −4.5% |
 
-## Fit (2026-10-01)
+## Report 4 — Chaos Arena, defender win (wall destroyed, 0 traps)
+
+`#529 [L*C]TOMAS CHELBI attacked Turf` — **Ranged Phalanx 378,000** (T5 cav 135,044 + T4 cav 242,956)
+vs **Ranged Phalanx 2,221,034** behind a **564,835 HP wall** with 0 traps. Event kingdom: no deaths.
+
+| Defender squad | Size | Lost |
+|---|---|---|
+| T4 inf / rng / cav / Destroyer | 328,727 / 339,867 / 330,724 / 18,308 | 0 |
+| T3 inf / rng / cav | 143,400 / 159,578 / 131,110 | 0 |
+| T2 inf / **rng** / cav | 163,278 / **158,080** / 166,474 | 0 / **66,513** / 0 |
+| T1 inf / **rng** / cav | 59,138 / **46,077** / 19,059 | 0 / **46,077** / 0 |
+| rows cut off the screenshot | 157,214 | 0 (entered as siege) |
+
+Attacker wiped (378,000, all wounded). Wall 564,835 → 0. Might totals match to the point again.
+Defender stat block not shown — the player's is used.
+
+**What it changed:**
+- **`WALL_HP_SCALE` 12,673 → 80.** At 12,673 the wall survived at 95% and the defender lost 0.
+  It only falls with a scale of about 100 or less. (Batch 3 wrongly assumed the castle table's
+  12,625 was the whole wall HP and scaled up to compensate.)
+- **Tier order inside the front is strict** (`PARAMS.spread` 0.9 → 0) — see the fit below.
+
+**Status: reproduces.** Fitted attacker 400 / 250 / 550: wiped in 13 rounds, wall falls in round 5,
+defender lost 111,823 (−0.7%): T1 rng 46,077 ✓, T2 rng 65,746 (−1.2%), everything else 0 ✓.
+
+## Fit (2026-10-01, reports 2 + 3 + 4)
+
+| Within-front order | R2 | R3 | R4 | Total |
+|---|---|---|---|---|
+| Spread 0.9 (Batch 3) | – | – | 0.42 | 0.77 |
+| **Strict (spread 0), damage scale 0.075** | **0.01** | 0.53 | **0.01** | **0.54** |
+
+Current reproduction: report 2 defender 62,829 vs 63,327 (−0.8%, T4 cav 0 ✓); report 4 −0.7%;
+report 3 defender T4 cav 153,579 vs 153,670 ✓ but T2 cav 100% vs 82% and attacker T5 0 vs 45,035.
+Option kept open: spread only against an attacking wedge — needs a second wedge report.
+
+### Earlier fit (reports 2 + 3 only, superseded)
+
 
 Both reports scored together, attacker stats free per report (they are not in the reports).
 Error = Σ|sim − real| per squad ÷ that side's real total losses.
@@ -209,9 +248,8 @@ Findings from the fit:
 
 ## Still wrong / still invented
 
-1. **Tier split inside the front.** Report 2 wants strict lowest-tier-first, report 3 wants mixing;
-   `PARAMS.spread = 0.9` is a compromise that misses report 2's T4 cav (11K vs 0) and report 3's
-   T2 cav (100% vs 82%). Something not modelled differs between the two battles.
+1. **Report 3's tier mixing.** Strict order fits reports 2 and 4 almost exactly but misses report 3
+   (the only attacking wedge). Whether wedges spread damage across tiers is untested.
 2. **Morale formula** — the mechanic is real, its drain formula (front/army weights, collapse
    shock, counter penalty) is invented; only the overall rate is fitted.
 3. Base troop stats (T1–T5 = 10/20/60/100/160) and type modifiers — invented; tested against the
@@ -228,8 +266,8 @@ Findings from the fit:
 
 Wall HP %, Wall Max HP, trap counts per type and Trap ATK/DEF are inputs; trap stats sit outside
 the additive type+army grid because the leader bonus does not raise them (both stat columns showed
-+60.84 / +66.92). Wall Max HP is now in game units (12,625 default); `WALL_HP_SCALE` was
-re-expressed (80 × 2,000,000 → 12,673 × 12,625) so the wall's engine HP did not change.
++60.84 / +66.92). Wall Max HP defaults to the player's 564,835; `WALL_HP_SCALE` = 80 (report 4).
+*The measured table below predates that fix (it used scale 12,673) — re-measure before quoting.*
 
 **Fixed after code review:** an extra erosion multiplier slowed damaged walls on top of the
 HP-proportional wall/trap split, which already produces that effect (counted twice); Trap DEF was
@@ -257,8 +295,9 @@ the game. Every wall/trap number above is uncalibrated until there is a wall-up 
 
 ## To finish calibrating
 
-- **A wall-up report** (with the trap counts per type and the boosted Wall HP shown in game), to
-  calibrate `WALL_HP_SCALE`, the `TRAP` stats and trap output. Highest value now.
+- **A wall-up report WITH traps** (counts per type), to calibrate the `TRAP` stats and trap
+  output. Report 4 pinned the wall scale but had 0 traps. Highest value now.
+- **A report where the attacker used a wedge**, to settle whether wedges spread damage across tiers.
 - More reports with full per-squad tables — each one tightens `PARAMS` and decides the tier-split
   question (report 2 strict vs report 3 mixed).
 - A report with **siege** in either army, and one where the defender used a **wedge**.

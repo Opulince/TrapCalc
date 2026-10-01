@@ -29,16 +29,16 @@ const march = (troops, extra = {}) => ({
   ...structuredClone(GARRISON),
   atk: { troops, formation: 'inf', stance: 'phalanx', stat: 1300, def: 400, hp: 550, familiar: 20, ...extra }
 });
-const MARCH_195K = { t4: { inf: 78000, rng: 48750, cav: 68250 } };   // 40/25/35 split
+const MARCH_125K = { t4: { inf: 50000, rng: 31250, cav: 43750 } };   // 40/25/35 split
 
 test('a march wiped in the last round has its leader captured', () => {
-  const R = runSimulation(march(grid(MARCH_195K)));
+  const R = runSimulation(march(grid(MARCH_125K)));
   assert.equal(R.outcome, 'win');
   assert.equal(R.rounds, 15);
 });
 
 test('10k T1 siege at the back saves the same march from capture', () => {
-  const troops = grid(MARCH_195K);
+  const troops = grid(MARCH_125K);
   troops.t1.sie = 10000;
   const R = runSimulation(march(troops));
   assert.notEqual(R.outcome, 'win');
@@ -67,7 +67,7 @@ test('formation is independent of composition: a 97%-cavalry Ranged Wedge leads 
 // a wall-up fight against a small all-cavalry march
 const WALL_UP = (traps, atkTroops) => {
   const cfg = march(atkTroops, { formation: 'cav', stance: 'phalanx', stat: 1000, def: 400, hp: 1150 });
-  cfg.def.wall = { maxHp: 12625, pct: 100, atk: 60.84, def: 66.92, traps };
+  cfg.def.wall = { maxHp: 564835, pct: 100, atk: 60.84, def: 66.92, traps };
   return cfg;
 };
 
@@ -80,8 +80,8 @@ test('spikes counter cavalry: they out-kill towers and logs against a cavalry ma
 
 test('siege counters traps: swapping 20% of a march to siege destroys more traps', () => {
   const traps = { spk: 42084, twr: 42083, log: 42083 };
-  const noSiege = runSimulation(WALL_UP(traps, grid({ t4: { cav: 120000 } })));
-  const withSiege = runSimulation(WALL_UP(traps, grid({ t4: { cav: 96000, sie: 24000 } })));
+  const noSiege = runSimulation(WALL_UP(traps, grid({ t4: { cav: 80000 } })));
+  const withSiege = runSimulation(WALL_UP(traps, grid({ t4: { cav: 64000, sie: 16000 } })));
   assert.ok(noSiege.trapLeft > 0, 'scenario must leave traps standing to compare');
   assert.ok(withSiege.trapLost > noSiege.trapLost, `${withSiege.trapLost} vs ${noSiege.trapLost}`);
 });

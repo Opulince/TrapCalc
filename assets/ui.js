@@ -20,9 +20,9 @@ const DEF_DEFAULTS = {
     army: { atk:155.45, def:226.75, hp:348.00 }
   },
   formation:'cav', stance:'phalanx',
-  // Wall Max HP and trap capacity default to the in-game table for the player's castle level
-  // (126,250 traps / 12,625 HP); the trap split across types is a placeholder.
-  wall: { maxHp:12625, pct:100, traps:{ spk:42084, twr:42083, log:42083 }, atk:60.84, def:66.92 },
+  // Wall Max HP is the player's boosted wall from report 4 (564,835); trap capacity is the in-game
+  // table for their castle level (126,250). The trap split across types is a placeholder.
+  wall: { maxHp:564835, pct:100, traps:{ spk:42084, twr:42083, log:42083 }, atk:60.84, def:66.92 },
   infirmary:300000, sanctuary:0, familiar:20
 };
 
@@ -35,6 +35,7 @@ const state = {
     t5: { inf:100000,  rng:100000,  cav:100000,  sie:0 }
   },
   def: structuredClone(DEF_DEFAULTS),
+  event: false,   // event battles (Chaos Arena etc.): nobody dies on either side
   // ATK / DEF / HP are independent, exactly as on the defender side. The march itself is a
   // tier x type squad grid; total / lineup / tierMix only drive the Quick Fill shortcut.
   // formation + stance is the lineup the report names, chosen independently of the troops.
@@ -530,7 +531,7 @@ function renderResults(R) {
       <div class="px-4 py-2.5">
         <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Inflicted Losses</div>
         <div class="num text-sm font-semibold text-accent-300">${n0(R.atkLost)} · ${compact(R.atkMightLost)} might</div>
-        <div class="num text-[11px] text-slate-400">${n0(R.atkDead)} dead · ${n0(R.atkWounded)} wounded (60/40 rule)</div>
+        <div class="num text-[11px] text-slate-400">${n0(R.atkDead)} dead · ${n0(R.atkWounded)} wounded (${R.event ? 'event: no deaths' : '60/40 rule'})</div>
       </div>
       <div class="px-4 py-2.5">
         <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Survived Troops</div>
@@ -860,6 +861,7 @@ $('inAtkHp').addEventListener('input', (e) => {
 
 $('inAtkLineup').addEventListener('change', (e) => { state.atk.lineup = e.target.value; refillMarch(); renderAttacker(); });
 $('inAtkTier').addEventListener('change', (e) => { state.atk.tierMix = e.target.value; refillMarch(); renderAttacker(); });
+$('inEvent').addEventListener('change', (e) => { state.event = e.target.checked; });
 $('inInfirmary').addEventListener('input', (e) => { state.def.infirmary = Math.max(0, Number(e.target.value) || 0); });
 $('inSanctuary').addEventListener('input', (e) => { state.def.sanctuary = Math.max(0, Number(e.target.value) || 0); });
 
