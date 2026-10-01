@@ -64,3 +64,8 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin
 .bar { transition: width .5s cubic-bezier(.22,1,.36,1); }
 .fade { animation: fade .3s ease-out both; }
 @keyframes fade { from { opacity:0; transform: translateY(5px); } to { opacity:1; transform:none; } }
+
+/* Dropdowns: the open option list is drawn by the browser (white by default) but inherits the
+   select's light text, which made options unreadable. Force a dark list. */
+select { color-scheme: dark; }
+select option { background-color: #0f172a; color: #e2e8f0; }
