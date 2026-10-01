@@ -16,7 +16,10 @@ Anything not listed here as *confirmed* is still an estimate.
   (Ranged Wedge = ranged + cavalry in front) lost only ranged and cavalry; infantry lost 0. Report
   2 fits the same rule (every loss was cavalry), which also explains its surviving T1 Archer —
   ranged, so never in the line of fire.
-- **Inside the front, lowest tier first — strictly, in 2 of 3 reports.** Report 2: T1 cav wiped,
+- **Troops fight as 4 squads per type, each holding a quarter of every tier** (wiki: 4 squads per
+  type; the reports show exact halves and quarters — see "Squad model" below). Inside a squad
+  the lowest tier dies first.
+- *Superseded by the squad model:* **Inside the front, lowest tier first — strictly, in 2 of 3 reports.** Report 2: T1 cav wiped,
   T2 cav −23%, T4 cav 0. Report 4: T1 rng wiped, T2 rng −42%, T3 and T4 rng exactly 0. Report 3 is
   the exception (T4 cav 61% dead with T2 cav at 82%; attacker T5 lost 34% with T4 at 50%) — and the
   only one with an attacking **wedge**. The model is strict; the wedge question is open.
@@ -24,6 +27,9 @@ Anything not listed here as *confirmed* is still an estimate.
   being wiped and its leader captured. The model reproduces this only if a finishing blow does
   not carry over into the next line in the same round (`PARAMS.lineSpill = false`).
 - **Morale is on both sides** (player-confirmed, NamuWiki): an army retreats at 0%.
+- **Mana Chamber** (in-game text): +2% troop power per level, levels 1-6, per type (inf/rng/cav);
+  siege is not chargeable. Report 7's might totals match plain per-tier might, so mana changes
+  combat stats, not might. Modelled as ×(1 + 2% × level) on ATK and survivability.
 - **Event battles (Chaos Arena): nobody dies** on either side (player-confirmed; report 4: 378,000
   attackers lost, all wounded, 0 dead). The app has an "Event battle" switch for this.
 - **Stats stack additively:** effective Infantry ATK = troop-type Infantry ATK + Army ATK.
@@ -181,7 +187,64 @@ Defender stat block not shown — the player's is used.
 **Status: reproduces.** Fitted attacker 400 / 250 / 550: wiped in 13 rounds, wall falls in round 5,
 defender lost 111,823 (−0.7%): T1 rng 46,077 ✓, T2 rng 65,746 (−1.2%), everything else 0 ✓.
 
-## Fit (2026-10-01, reports 2 + 3 + 4)
+## Reports 5, 6, 7 (full tables in `test/reports.js`)
+
+- **R5** — Chaos Arena. HADY (~600 ATK) Infantry Phalanx 378,000 (374,902 T4 inf + 3,098 Destroyer)
+  wiped vs Ranged Phalanx 2,108,444, wall down. Defender lost 296,746: T2 rng 91,567 (100%),
+  T3 rng 159,578 (100%), T4 rng 45,601; nothing else. Blind prediction got the shape exactly and
+  the total within its range (best guess 400K), but predicted the march would survive.
+- **R6** — Chaos Arena. HADY Infantry Phalanx 378,000 (123,493 / 150,396 / 104,111 T4) wiped vs a
+  **Ranged Wedge** (R4's garrison). Defender lost 135,337: T1 rng 23,038 and T2 rng 79,039 — **exactly
+  half** — and T3 rng 33,260; cavalry 0. Blind prediction (310K, ranged + cavalry) was wrong;
+  this report is what exposed the squad structure.
+- **R7** — Maria (max account, mana 3, ~1000-1100 ATK) Infantry Phalanx 390,000 vs Ranged Phalanx
+  3,679,827 fought **without war gear** (~230 instead of ~480), wall 564,835 + 13,719 traps
+  destroyed. Defender lost 1,535,924 (ranged T1-T3 100%, T4 66%; cavalry T1 100%, T2 53%, T3
+  exactly 25%, T4 4%). Attacker lost 135,413 (60/40 ✓): T5 inf exactly 42,500 (two whole
+  squads), T4 inf 41,862, T5 cav 25,951, T4 cav 24,500 (exactly half), T4 rng 600.
+
+## Squad model (2026-10-01)
+
+Every type = 4 squads, each a quarter of every tier; lowest tier first inside a squad.
+
+| Evidence | Squads explain it |
+|---|---|
+| R6 wedge: T1 rng −50.0%, T2 rng −50.0%, T3 rng 33,260 | 2 ranged squads in front side by side → T3 33,258 |
+| R3 attacker wedge: T4 rng 2,000 of 4,000, T4 cav 57,990 of 115,982, T5 cav 45,035 | 2 ranged squads, then cavalry squads |
+| R7 attacker: T5 inf exactly 42,500 | 2 whole infantry squads (incl. their T5) died one after another |
+| R7 defender: T3 cav exactly 25% | one cavalry squad's share |
+| Phalanx reports 2/4/5 | 4 lead squads hit side by side = strict tier order (what fit before) |
+
+Rules fitted (test both alternatives, keep the better):
+- Garrison squads take hits **side by side**, the march's **one after another** — 0.89 vs 1.12
+  (both side by side) vs 2.61 (both one after another).
+- Wedge front: 2 lead squads, then 2 squads of the type it counters, then the rest.
+- Behind the front: all other combat types together. "Cavalry first" (a guide's Infantry
+  Phalanx order) was tested: 0.877 vs 0.893 and worse on R7 — not adopted.
+- Troop counters do not apply against the wall (bug fixed while testing siege vs traps).
+
+**Fit, reports 2-7, attacker stats held to the hints:**
+
+| | R2 | R3 | R4 | R5 | R6 | R7 | Total |
+|---|---|---|---|---|---|---|---|
+| Line model (before) | 0.01 | 0.53 | 0.00 | 0.19 | 1.17 | 1.03 | 2.93 |
+| **Squad model** | **0.01** | **0.13** | **0.00** | **0.04** | **0.05** | **0.69** | **0.91** |
+
+`PARAMS`: damage scale 0.10, support 0.45, morale rate 0.5.
+
+**Known gaps:**
+- **R7 second line:** the defender's cavalry and the attacker's cavalry/ranged bled while their
+  fronts still stood. The model only reaches the next group once the front is gone, so it puts
+  those losses on the front instead (and bleeds defender infantry that really lost 0).
+- **R3 defender:** cavalry phalanx lost T2 82% / T4 61% — squads hit unevenly; not explained.
+- **Attacker DEF still fits low** (100-250) even with ATK held to the hints — the march is
+  probably still somewhat too tanky, or the defender output too low.
+- R5: the sim leaves the 3,098 Destroyers alive (march not quite wiped); real march was wiped.
+- With back-line output at 45%, swapping front troops for siege does not pay off against traps
+  in the model. Trap numbers are still uncalibrated.
+
+### Earlier: line model fit (reports 2 + 3 + 4)
+
 
 | Within-front order | R2 | R3 | R4 | Total |
 |---|---|---|---|---|
@@ -294,6 +357,10 @@ the game. Every wall/trap number above is uncalibrated until there is a wall-up 
 **Wall state is a required input when reproducing any report.**
 
 ## To finish calibrating
+
+- **Your own attack reports**, with your attack stat screen: the only reports where the
+  attacker's stats are known. That would settle the "attacker too tanky" question.
+- More reports where a second line bleeds (like R7), to find the rule for when it engages.
 
 - **A wall-up report WITH traps** (counts per type), to calibrate the `TRAP` stats and trap
   output. Report 4 pinned the wall scale but had 0 traps. Highest value now.

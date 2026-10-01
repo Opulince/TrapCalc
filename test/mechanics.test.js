@@ -29,16 +29,16 @@ const march = (troops, extra = {}) => ({
   ...structuredClone(GARRISON),
   atk: { troops, formation: 'inf', stance: 'phalanx', stat: 1300, def: 400, hp: 550, familiar: 20, ...extra }
 });
-const MARCH_125K = { t4: { inf: 50000, rng: 31250, cav: 43750 } };   // 40/25/35 split
+const MARCH_140K = { t4: { inf: 56000, rng: 35000, cav: 49000 } };   // 40/25/35 split
 
 test('a march wiped in the last round has its leader captured', () => {
-  const R = runSimulation(march(grid(MARCH_125K)));
+  const R = runSimulation(march(grid(MARCH_140K)));
   assert.equal(R.outcome, 'win');
   assert.equal(R.rounds, 15);
 });
 
 test('10k T1 siege at the back saves the same march from capture', () => {
-  const troops = grid(MARCH_125K);
+  const troops = grid(MARCH_140K);
   troops.t1.sie = 10000;
   const R = runSimulation(march(troops));
   assert.notEqual(R.outcome, 'win');
@@ -78,15 +78,29 @@ test('spikes counter cavalry: they out-kill towers and logs against a cavalry ma
   assert.ok(kills('spk') > 1.5 * kills('log'), `spikes ${kills('spk')} vs logs ${kills('log')}`);
 });
 
-test('siege counters traps: swapping 20% of a march to siege destroys more traps', () => {
+// Siege fights from the back line (reduced output), so the fair comparison is siege against
+// another back-line type in the same slot — ranged, which has the highest base ATK.
+test('siege counters traps: 16k siege behind the front destroys more traps than 16k ranged', () => {
   const traps = { spk: 42084, twr: 42083, log: 42083 };
-  const noSiege = runSimulation(WALL_UP(traps, grid({ t4: { cav: 80000 } })));
+  const withRanged = runSimulation(WALL_UP(traps, grid({ t4: { cav: 64000, rng: 16000 } })));
   const withSiege = runSimulation(WALL_UP(traps, grid({ t4: { cav: 64000, sie: 16000 } })));
-  assert.ok(noSiege.trapLeft > 0, 'scenario must leave traps standing to compare');
-  assert.ok(withSiege.trapLost > noSiege.trapLost, `${withSiege.trapLost} vs ${noSiege.trapLost}`);
+  assert.ok(withRanged.trapLeft > 0, 'scenario must leave traps standing to compare');
+  assert.ok(withSiege.trapLost > withRanged.trapLost, `${withSiege.trapLost} vs ${withRanged.trapLost}`);
 });
 
 test('a plain trap number is split evenly across the three trap types', () => {
   const R = runSimulation(WALL_UP(90000, grid({ t4: { cav: 1000 } })));
   assert.deepEqual(R.trapStartBy, { spk: 30000, twr: 30000, log: 30000 });
+});
+
+test('mana: +2% per level makes a march hit harder and last longer (siege is not chargeable)', () => {
+  const base = march(grid(MARCH_140K));
+  const charged = structuredClone(base);
+  charged.atk.mana = { inf: 6, rng: 6, cav: 6, sie: 6 };
+  const a = runSimulation(base), b = runSimulation(charged);
+  assert.ok(b.defLost > a.defLost, `defender losses ${b.defLost} vs ${a.defLost}`);
+  assert.ok(b.atkLost <= a.atkLost, `attacker losses ${b.atkLost} vs ${a.atkLost}`);
+  // siege ignores mana: a pure-siege march is unchanged
+  const siegeOnly = (mana) => { const c = march(grid({ t4: { sie: 50000 } })); c.atk.mana = mana; return runSimulation(c); };
+  assert.equal(siegeOnly({ sie: 6 }).defLost, siegeOnly({}).defLost);
 });

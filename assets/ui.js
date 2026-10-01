@@ -23,7 +23,8 @@ const DEF_DEFAULTS = {
   // Wall Max HP is the player's boosted wall from report 4 (564,835); trap capacity is the in-game
   // table for their castle level (126,250). The trap split across types is a placeholder.
   wall: { maxHp:564835, pct:100, traps:{ spk:42084, twr:42083, log:42083 }, atk:60.84, def:66.92 },
-  infirmary:300000, sanctuary:0, familiar:20
+  infirmary:300000, sanctuary:0, familiar:20,
+  mana: { inf:0, rng:0, cav:0 }   // Mana Chamber level per type, 0-6
 };
 
 const state = {
@@ -40,7 +41,8 @@ const state = {
   // tier x type squad grid; total / lineup / tierMix only drive the Quick Fill shortcut.
   // formation + stance is the lineup the report names, chosen independently of the troops.
   atk: { march:'solo', total:250000, stat:450, def:400, hp:450, lineup:'cav', tierMix:'t4',
-         formation:'cav', stance:'phalanx', familiar:20, troops: fillTroops(250000, 'cav', 't4') }
+         formation:'cav', stance:'phalanx', familiar:20, troops: fillTroops(250000, 'cav', 't4'),
+         mana: { inf:0, rng:0, cav:0 } }
 };
 const refillMarch = () => { state.atk.troops = fillTroops(state.atk.total, state.atk.lineup, state.atk.tierMix); };
 const marchTotal = () => TIER_KEYS.reduce((s, tk) => s + TYPE_KEYS.reduce((q, yk) => q + state.atk.troops[tk][yk], 0), 0);
@@ -165,6 +167,18 @@ function renderAtkGrid() {
   const fill = fillTroops(state.atk.total, state.atk.lineup, state.atk.tierMix);
   const custom = TIER_KEYS.some((tk) => TYPE_KEYS.some((yk) => Math.round(fill[tk][yk]) !== Math.round(state.atk.troops[tk][yk])));
   $('atkGridTag').textContent = n0(marchTotal()) + ' troops' + (custom ? ' · custom' : ' · from quick fill');
+}
+
+// Mana level pickers (0-6) for both sides.
+function buildMana() {
+  document.querySelectorAll('[data-mana-side]').forEach((el) => {
+    el.innerHTML = [0, 1, 2, 3, 4, 5, 6].map((l) => '<option value="' + l + '">' + (l ? 'Lv ' + l + ' · +' + (l * 2) + '%' : 'None') + '</option>').join('');
+  });
+}
+function renderMana() {
+  document.querySelectorAll('[data-mana-side]').forEach((el) => {
+    el.value = String(state[el.dataset.manaSide].mana[el.dataset.manaType] || 0);
+  });
 }
 
 function buildDefStats() {
@@ -390,7 +404,7 @@ function renderAttacker() {
   $('matchup').innerHTML = txt;
 }
 
-function renderAll() { renderTroops(); renderLunar(); renderWall(); renderFormation(); renderAttacker(); renderDefEff(); }
+function renderAll() { renderTroops(); renderLunar(); renderWall(); renderFormation(); renderAttacker(); renderDefEff(); renderMana(); }
 
 
 /* ═══════════════════════════ RESULTS UI ═══════════════════════════ */
@@ -861,6 +875,9 @@ $('inAtkHp').addEventListener('input', (e) => {
 
 $('inAtkLineup').addEventListener('change', (e) => { state.atk.lineup = e.target.value; refillMarch(); renderAttacker(); });
 $('inAtkTier').addEventListener('change', (e) => { state.atk.tierMix = e.target.value; refillMarch(); renderAttacker(); });
+document.querySelectorAll('[data-mana-side]').forEach((el) => el.addEventListener('change', (e) => {
+  state[e.target.dataset.manaSide].mana[e.target.dataset.manaType] = clamp(Number(e.target.value) || 0, 0, 6);
+}));
 $('inEvent').addEventListener('change', (e) => { state.event = e.target.checked; });
 $('inInfirmary').addEventListener('input', (e) => { state.def.infirmary = Math.max(0, Number(e.target.value) || 0); });
 $('inSanctuary').addEventListener('input', (e) => { state.def.sanctuary = Math.max(0, Number(e.target.value) || 0); });
@@ -931,5 +948,6 @@ buildLineups();
 buildTierMixes();
 buildDefStats();
 buildAtkGrid();
+buildMana();
 renderAll();
 syncAllInputs();
