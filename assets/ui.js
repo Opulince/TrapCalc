@@ -7,6 +7,23 @@ import {
 } from './engine.js';
 
 /* ═══════════════════════════ STATE ═══════════════════════════ */
+// Mirrors the in-game stat screen. Troop-type and Army bonuses stack additively,
+// so effective Infantry ATK = inf.atk + army.atk. Defaults are real Leader-Deployed values.
+// Trap ATK/DEF are their own stats — the leader bonus does not raise them,
+// so they are kept out of the additive type+army grid. Defaults are real values.
+// The single source of truth for defender defaults: initial state and Reset both copy it.
+const DEF_DEFAULTS = {
+  stats: {
+    inf:  { atk:302.49, def:229.85, hp:201.72 },
+    rng:  { atk:318.54, def:184.95, hp:185.83 },
+    cav:  { atk:309.72, def:194.47, hp:201.08 },
+    army: { atk:155.45, def:226.75, hp:348.00 }
+  },
+  formation:'cav', stance:'phalanx',
+  wall: { maxHp:2000000, pct:100, traps:200000, atk:60.84, def:66.92 },
+  infirmary:300000, dp:30, retreat:38, familiar:20
+};
+
 const state = {
   troops: {
     t1: { inf:0,       rng:0,       cav:0       },
@@ -15,19 +32,7 @@ const state = {
     t4: { inf:400000,  rng:400000,  cav:400000  },
     t5: { inf:100000,  rng:100000,  cav:100000  }
   },
-  // Mirrors the in-game stat screen. Troop-type and Army bonuses stack additively,
-  // so effective Infantry ATK = inf.atk + army.atk. Defaults are real Leader-Deployed values.
-  def: { stats: {
-           inf:  { atk:302.49, def:229.85, hp:201.72 },
-           rng:  { atk:318.54, def:184.95, hp:185.83 },
-           cav:  { atk:309.72, def:194.47, hp:201.08 },
-           army: { atk:155.45, def:226.75, hp:348.00 }
-         },
-         formation:'cav', stance:'phalanx',
-         // Trap ATK/DEF are their own stats — the leader bonus does not raise them,
-         // so they are kept out of the additive type+army grid. Defaults are real values.
-         wall: { maxHp:2000000, pct:100, traps:200000, atk:60.84, def:66.92 },
-         infirmary:300000, dp:30, retreat:38, familiar:20 },
+  def: structuredClone(DEF_DEFAULTS),
   // ATK / DEF / HP are independent, exactly as on the defender side. Deriving DEF and HP
   // from a single "attack stats" number squared one input into survivability.
   atk: { march:'solo', total:250000, stat:450, def:400, hp:450, lineup:'cav', tierMix:'t4',
@@ -253,8 +258,9 @@ function renderFormation() {
       ' across both squads and both fight at full output, so no single squad eats the overkill.';
   } else {
     $('formHint').innerHTML =
-      '<span class="font-semibold text-accent-300">' + f.name + '</span> absorbs ' + Math.round(st.frontShare * 100) +
-      '% of incoming alone. Deals <span class="font-semibold text-accent-300">2x</span> to ' + TYPE[f.beats].name +
+      '<span class="font-semibold text-accent-300">' + f.name + '</span> absorbs ' +
+      Math.round(STANCE[state.atk.stance].frontShare * 100) + '% of incoming alone (set by the attacker\'s ' +
+      STANCE[state.atk.stance].label.toLowerCase() + '). Deals <span class="font-semibold text-accent-300">2x</span> to ' + TYPE[f.beats].name +
       ', takes <span class="font-semibold text-rose-400">2x</span> from ' + TYPE[COUNTERED_BY[f.key]].name + '.';
   }
 }
@@ -388,7 +394,13 @@ function renderResults(R) {
     ? 'Attacker broke off on round ' + R.rounds + ' after losing ' + R.lossPct.toFixed(1) + '% of the march (threshold ' +
       R.retreatPct.toFixed(0) + '%). ' + compact(R.atkSurv) + ' troops fled home; ' + frontLabel + ' held at ' +
       R.morale.toFixed(0) + '% morale.'
-    : 'Morale collapsed on round ' + R.rounds + '. ' + compact(R.atkSurv) + ' attacker troops still marching (' +
+    : (R.lossReason === 'front'
+        ? 'Your front line was wiped out on round ' + R.rounds + '. '
+        : R.lossReason === 'attrition'
+        ? 'Engagement ran its full ' + R.rounds + ' rounds and you lost ' + pctTxt(R.defLost, R.armyStart, 1) +
+          ' of the garrison (60%+ counts as a loss) with morale still at ' + R.morale.toFixed(0) + '%. '
+        : 'Morale collapsed on round ' + R.rounds + '. ') +
+      compact(R.atkSurv) + ' attacker troops still marching (' +
       R.lossPct.toFixed(1) + '% killed, ' + R.retreatPct.toFixed(0) + '% needed to force a retreat).';
 
   const banner = `
@@ -532,16 +544,17 @@ function renderResults(R) {
       </div>
       <p class="mt-2 text-xs leading-relaxed text-slate-400">
         ${R.wallStood
-          ? 'Traps fought for ' + R.wallRounds + ' round' + (R.wallRounds === 1 ? '' : 's') +
-            ' and killed <span class="font-semibold text-accent-300">' + compact(R.wallKills) + '</span> attackers (' +
-            compact(R.trapVolleyKills) + ' in the opening volley). The garrison was shielded until the wall fell.'
+          ? 'The wall stood for ' + R.wallRounds + ' round' + (R.wallRounds === 1 ? '' : 's') +
+            '. Traps killed <span class="font-semibold text-accent-300">' + compact(R.trapKills) + '</span> attackers (' +
+            compact(R.trapVolleyKills) + ' in the opening volley); your garrison killed ' + compact(R.wallKills - R.trapKills) +
+            ' more in that time. Wall started at ' + R.wallStartPct.toFixed(0) + '% HP. The garrison was shielded until the wall fell.'
           : 'Wall HP was 0, so every trap was inert and the march hit the garrison directly from round 1.'}
       </p>
     </div>
     <div class="grid grid-cols-2 divide-x divide-y divide-slate-800 border-t border-slate-800 sm:grid-cols-4 sm:divide-y-0">
       <div class="px-4 py-2.5">
         <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Wall HP</div>
-        <div class="num text-sm font-semibold text-slate-100">${compact(R.wallHpLeft)} / ${compact(R.wallStartHp)}</div>
+        <div class="num text-sm font-semibold text-slate-100">${compact(R.wallHpLeft)} / ${compact(R.wallMaxHp)}</div>
       </div>
       <div class="px-4 py-2.5">
         <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Rounds Held</div>
@@ -553,7 +566,7 @@ function renderResults(R) {
       </div>
       <div class="px-4 py-2.5">
         <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Trap Kills</div>
-        <div class="num text-sm font-semibold text-accent-300">${compact(R.wallKills)}</div>
+        <div class="num text-sm font-semibold text-accent-300">${compact(R.trapKills)}</div>
       </div>
     </div>
   </div>`;
@@ -653,7 +666,7 @@ function renderResults(R) {
             <th class="py-2 text-right font-medium">Atk Dmg</th>
             <th class="py-2 text-right font-medium">Def Dmg</th>
             <th class="py-2 text-right font-medium">March</th>
-            <th class="py-2 text-right font-medium">Phalanx</th>
+            <th class="py-2 text-right font-medium">Front</th>
             <th class="py-2 text-right font-medium">Morale</th>
           </tr>
         </thead>
@@ -721,7 +734,7 @@ document.querySelectorAll('.defStanceBtn').forEach((b) => b.addEventListener('cl
 
 document.querySelectorAll('.atkStanceBtn').forEach((b) => b.addEventListener('click', () => {
   state.atk.stance = b.dataset.atkstance;
-  renderAttacker();
+  renderAttacker(); renderFormation();  // the defender hint quotes the attacker's front share
 }));
 
 document.querySelectorAll('[data-fam]').forEach((el) => el.addEventListener('input', (e) => {
@@ -792,18 +805,35 @@ $('btnResetTroops').addEventListener('click', () => {
   renderTroops(); renderLunar();
 });
 $('btnResetStats').addEventListener('click', () => {
-  state.def.stats = { inf:{atk:302.49,def:229.85,hp:201.72}, rng:{atk:318.54,def:184.95,hp:185.83},
-                      cav:{atk:309.72,def:194.47,hp:201.08}, army:{atk:155.45,def:226.75,hp:348.00} };
-  state.def.infirmary = 300000; state.def.dp = 30;
-  state.def.retreat = 38; state.def.familiar = 20; state.def.stance = 'phalanx';
-  state.def.wall = { maxHp:2000000, pct:100, traps:200000, atk:60.84, def:66.92 };
-  $('inWallMax').value = 2000000; $('inTraps').value = 200000;
-  $('inTrapAtk').value = 60.84; $('inTrapDef').value = 66.92;
-  $('inInfirmary').value = 300000; $('inDP').value = 30;
-  document.querySelectorAll('[data-retreat]').forEach((o) => { o.value = 38; });
-  document.querySelectorAll('[data-fam="def"]').forEach((o) => { o.value = 20; });
-  buildDefStats(); renderAll();
+  // Reset restores every defender setting except the chosen formation type.
+  state.def = Object.assign(structuredClone(DEF_DEFAULTS), { formation: state.def.formation });
+  buildDefStats(); renderAll(); syncAllInputs();
 });
+
+// The value the engine will actually use for a given number input. Typing out of range is
+// clamped in state immediately, but the box kept showing the raw text until something else
+// re-rendered — so the screen could disagree with the simulation.
+function canonicalValue(el) {
+  const d = el.dataset;
+  if (d.role === 'slider' || d.role === 'number') return state.troops[d.tier][d.type];
+  if (d.srow) return state.def.stats[d.srow][d.scol];
+  if (d.wall) return state.def.wall[d.wall];
+  if (d.fam) return d.fam === 'def' ? state.def.familiar : state.atk.familiar;
+  if (d.retreat) return state.def.retreat;
+  return {
+    inAtkTotal: state.atk.total, slAtkTotal: state.atk.total,
+    inAtkStat: state.atk.stat, slAtkStat: state.atk.stat,
+    inAtkDef: state.atk.def, inAtkHp: state.atk.hp,
+    inInfirmary: state.def.infirmary, inDP: state.def.dp
+  }[el.id];
+}
+function syncInput(el) {
+  const v = canonicalValue(el);
+  if (v !== undefined && Number(el.value) !== v) el.value = v;
+}
+function syncAllInputs() { document.querySelectorAll('input').forEach(syncInput); }
+// 'change' fires when an edit is committed (blur / Enter), never mid-typing
+document.addEventListener('change', (e) => { if (e.target.tagName === 'INPUT') syncInput(e.target); });
 
 function doSim(btn) {
   const label = btn.innerHTML;
@@ -834,3 +864,4 @@ buildLineups();
 buildTierMixes();
 buildDefStats();
 renderAll();
+syncAllInputs();

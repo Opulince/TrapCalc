@@ -66,13 +66,13 @@ export const TIER_MIX = {
 //  · Traps strike BEFORE the armies trade damage — the defender's free first hit.
 //  · Incoming damage splits between wall and traps in proportion to their HP, so more
 //    traps pull damage off the wall and lengthen the wall fight.
-//  · A damaged wall loses HP more slowly than a full one.
+//  · A damaged wall loses HP more slowly than a full one — a CONSEQUENCE of the split
+//    above (less wall HP = smaller share of the hit), not a separate multiplier.
 // A trap is roughly a tanky T4-grade defender. Game Wall HP is quoted in its own units,
 // so WALL_HP_SCALE converts it into the same effective-HP space the troops fight in.
 // Both are estimates pending calibration against wall-up / wall-down report pairs.
 export const TRAP = { hp:150, atk:120 };        // per-trap base, estimated
 const WALL_HP_SCALE = 80;                // game Wall HP -> engine EHP
-const WALL_EROSION_FLOOR = 0.50;         // a wall at 0% integrity erodes at half rate
 const TRAP_VOLLEY = 1.00;                // pre-battle free strike, in rounds of trap output
 
 export const T5_COST = { food:18000, wood:14000, stone:6000, ore:3600, gear:1, gemsPerGear:12 };
@@ -259,16 +259,20 @@ export function runSimulation(cfg) {
   const atkLeads = leadTypes(dominantType(cfg), S.atk.stance);
   // an attacker wedge spreads its hit wider, so less of it lands on one squad
   const frontShare = atkStance.frontShare;
-  const isLead = {};
-  defLeads.forEach((yk) => { isLead[yk] = true; });
   const isAtkLead = {};
   atkLeads.forEach((yk) => { isAtkLead[yk] = true; });
 
-  // If the chosen formation type is empty, whatever squads actually stand in for it become
-  // the front — otherwise a garrison with no cavalry "loses" on round 1 with 90M troops left.
-  const activeLeads = defLeads.filter((yk) => typeAlive(yk) > 0).length
-    ? defLeads.filter((yk) => typeAlive(yk) > 0)
-    : TYPE_KEYS.filter((yk) => typeAlive(yk) > 0);
+  // One definition of "the front", used for damage routing, output AND morale: the live
+  // lead squads, or — if the chosen formation type is empty — every squad still standing.
+  // (Before, three diverging notions let an empty formation drop the whole army to support
+  // output while morale tracked a different set of squads.)
+  function liveFronts() {
+    const leads = defLeads.map((yk, i) => ({ type:yk, weight:defStance.weights[i] || 0 }))
+                          .filter((fr) => typeAlive(fr.type) > 0);
+    if (leads.length) return leads;
+    return TYPE_KEYS.filter((yk) => typeAlive(yk) > 0).map((yk) => ({ type:yk, weight:1 }));
+  }
+  const activeLeads = liveFronts().map((fr) => fr.type);
   const frontOf = () => activeLeads.reduce((s, yk) => s + typeAlive(yk), 0);
   const frontStart = frontOf() || 1;
   const armyStart = defAlive() || 1;
@@ -283,12 +287,17 @@ export function runSimulation(cfg) {
   const wallMaxHp = Math.max(0, W.maxHp);
   let wallHp = wallMaxHp * WALL_HP_SCALE * clamp(W.pct, 0, 100) / 100;
   const wallStartHp = wallHp;
+  const wallMaxEhp = wallMaxHp * WALL_HP_SCALE;
   const trapStart = Math.max(0, W.traps);
   let trapCount = trapStart;
-  const trapEhpEach = TRAP.hp * (1 + W.def / 100);
+  // Trap DEF is applied exactly once — as mitigation where the hit lands (below). It used to
+  // also inflate trap HP, so traps got their DEF twice.
+  const trapEhpEach = TRAP.hp;
   const trapOutput = () => trapCount * TRAP.atk * (1 + W.atk / 100) * DAMAGE_SCALE;
   const wallStood = wallHp > 0.5;
-  let wallRounds = 0, wallKills = 0, trapVolleyKills = 0;
+  // wallKills = every attacker killed while the wall stood; trapKills = the part the traps
+  // did. The garrison also fires during the wall phase, so the two are not the same thing.
+  let wallRounds = 0, wallKills = 0, trapKills = 0, trapVolleyKills = 0;
 
   // Traps get the first hit in, before the armies ever trade damage.
   if (wallStood && trapCount > 0) {
@@ -296,9 +305,10 @@ export function runSimulation(cfg) {
     damageAttacker(trapOutput() * TRAP_VOLLEY);
     trapVolleyKills = before - atkAlive();
     wallKills += trapVolleyKills;
+    trapKills += trapVolleyKills;
   }
 
-  let morale = 100, round = 0, outcome = null, burstRounds = 0;
+  let morale = 100, round = 0, outcome = null, lossReason = null, burstRounds = 0;
   const log = [];
 
   while (round < BATTLE_ROUNDS) {
@@ -307,11 +317,10 @@ export function runSimulation(cfg) {
     if (burst) burstRounds++;
 
     // live lead squads and their share of the incoming hit
-    let fronts = defLeads.map((yk, i) => ({ type:yk, weight:defStance.weights[i] || 0 }))
-                         .filter((fr) => typeAlive(fr.type) > 0);
-    if (!fronts.length) {
-      fronts = [{ type: TYPE_KEYS.filter((yk) => typeAlive(yk) > 0)[0] || formation, weight:1 }];
-    }
+    let fronts = liveFronts();
+    if (!fronts.length) fronts = [{ type:formation, weight:1 }];  // garrison already wiped
+    const isLead = {};
+    fronts.forEach((fr) => { isLead[fr.type] = true; });
     const wSum = fronts.reduce((s, fr) => s + fr.weight, 0) || 1;
 
     const aEhp = atkEhpNow();
@@ -350,16 +359,18 @@ export function runSimulation(cfg) {
     if (wallUp) {
       wallRounds++;
       const beforeAtk = atkAlive();
-      damageAttacker(defDmg + trapOutput());
-      wallKills += beforeAtk - atkAlive();
+      const trapDmg = trapOutput();
+      damageAttacker(defDmg + trapDmg);
+      const killed = beforeAtk - atkAlive();
+      wallKills += killed;
+      // one combined hit, so credit the kills to traps by their share of the damage
+      trapKills += (defDmg + trapDmg) > 0 ? killed * (trapDmg / (defDmg + trapDmg)) : 0;
 
       const trapPool = trapCount * trapEhpEach;
       const mitigated = atkDmg / (1 + W.def / 100);      // wall/trap DEF soaks part of the hit
       const wallShare = (wallHp + trapPool) > 0 ? wallHp / (wallHp + trapPool) : 1;
 
-      // a battered wall erodes more slowly than a pristine one
-      const erosion = WALL_EROSION_FLOOR + (1 - WALL_EROSION_FLOOR) * (wallStartHp > 0 ? wallHp / wallStartHp : 0);
-      const toWall = mitigated * wallShare * erosion;
+      const toWall = mitigated * wallShare;
       const toTraps = mitigated * (1 - wallShare);
 
       const wallAbsorbed = Math.min(wallHp, toWall);
@@ -391,11 +402,11 @@ export function runSimulation(cfg) {
     const lossRatio = 1 - atkAlive() / atkStartTotal;
     log.push({ r:round, engaged: wallUp ? 'WALL' : fronts.map((fr) => TYPE[fr.type].short).join('+'), burst,
                atkDmg, defDmg, morale, atkLeft:atkAlive(), frontLeft:frontOf(), lossRatio,
-               wallPct: wallStartHp > 0 ? (wallHp / wallStartHp) * 100 : 0 });
+               wallPct: wallMaxEhp > 0 ? (wallHp / wallMaxEhp) * 100 : 0 });
 
     if (atkAlive() <= 0.5) { outcome = 'win'; break; }
     if (lossRatio >= retreatAt) { outcome = 'retreat'; break; }
-    if (morale <= 0) { outcome = 'loss'; break; }
+    if (morale <= 0) { outcome = 'loss'; lossReason = frontOf() <= 0.5 ? 'front' : 'morale'; break; }
   }
   // engagement ran its full length with both sides still standing — judge on attrition
   if (!outcome) {
@@ -403,6 +414,8 @@ export function runSimulation(cfg) {
     outcome = (1 - atkAlive() / atkStartTotal) >= retreatAt ? 'retreat'
             : (defLossPct >= 0.60 || frontOf() <= 0.5) ? 'loss'
             : 'held';
+    // a time-out loss is NOT a morale collapse — say which rule actually ended it
+    if (outcome === 'loss') lossReason = frontOf() <= 0.5 ? 'front' : 'attrition';
   }
 
   const defRows = [];
@@ -443,15 +456,17 @@ export function runSimulation(cfg) {
   });
 
   return {
-    outcome, rounds:round, formation, log, morale,
+    outcome, lossReason, rounds:round, formation, log, morale,
     defRows, defLost, defSurv, mightLost, armyStart,
     atkRows, atkLost, atkSurv, atkStart, atkMightLost,
     ward, overflowByTier, wounded, overflow, revived, dead,
     healCost: bill(t5Wounded, HEAL_RATIO), rebuildCost: bill(t5Dead, 1),
     t5Wounded, t5Dead, burstRounds,
     wallStood, wallStartHp:wallStartHp / WALL_HP_SCALE, wallHpLeft:wallHp / WALL_HP_SCALE, wallMaxHp,
-    wallPctLeft: wallStartHp > 0 ? (wallHp / wallStartHp) * 100 : 0,
-    wallRounds, wallKills, trapVolleyKills,
+    // both percentages are of MAX wall HP, so a wall that starts at 25% reads as 25%
+    wallStartPct: wallMaxEhp > 0 ? (wallStartHp / wallMaxEhp) * 100 : 0,
+    wallPctLeft: wallMaxEhp > 0 ? (wallHp / wallMaxEhp) * 100 : 0,
+    wallRounds, wallKills, trapKills, trapVolleyKills,
     trapStart, trapLeft:trapCount, trapLost:Math.max(0, trapStart - trapCount),
     defLeads: activeLeads, defStanceLabel: defStance.label, atkStanceLabel: atkStance.label,
     retreatPct: retreatAt * 100, lossPct: (1 - atkAlive() / atkStartTotal) * 100,

@@ -97,7 +97,7 @@
           <div id="hdrGear" class="num text-sm font-semibold text-slate-100">0</div>
         </div>
         <div class="px-3.5 py-2">
-          <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Phalanx</div>
+          <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Formation</div>
           <div id="hdrForm" class="text-sm font-semibold text-accent-300">Infantry</div>
         </div>
       </div>
@@ -448,11 +448,14 @@
         <div class="font-mono text-[10px] uppercase tracking-[0.22em] text-slate-400">Engine Reference</div>
         <p class="mt-1.5 text-xs leading-relaxed text-slate-400">
           Counter triangle: <span class="text-slate-200">Infantry &gt; Ranged &gt; Cavalry &gt; Infantry</span>. A counter doubles damage dealt against the countered type.
-          A <span class="text-slate-200">phalanx</span> puts one squad in front and eats 72% of the incoming hit; a <span class="text-slate-200">wedge</span> fields two
-          (the anchor plus the type it counters, which is exactly what hard-counters the anchor's counter), splitting 55/45 and letting both fight at full output.
-          An attacker wedge spreads its hit wider (55% front share) and gives two spearhead types +15% damage. Inside every squad T2 absorbs, then T4, then T5.
-          Morale drains from lead-squad attrition and layer collapses, throttling defender output down to 35%. Familiar talents fire every 3rd round.
-          Defender wins by wiping the march — or by killing enough of it to trip the retreat threshold before morale hits zero.
+          Casualties climb the tier ladder <span class="text-slate-200">across the whole army</span>: every T1 falls before any T2, then T3, T4, T5.
+          Within a tier, the front squads take the attacker's front share — 72% against a phalanx march, 55% against a wedge. A defender
+          <span class="text-slate-200">wedge</span> fields two front squads (the anchor plus the type it counters) that split that share 55/45 and both fight at full output;
+          other squads fight at 45%. An attacker wedge also gives its two spearhead types +15% damage.
+          While the <span class="text-slate-200">wall</span> stands, traps strike first, incoming damage splits between wall and traps by HP share, and the garrison takes
+          only what breaks through. The engagement runs up to 15 rounds; familiar talents fire every 3rd round. Morale drains from front-line losses and
+          throttles defender output down to 35%.
+          Defender wins by wiping the march, tripping its retreat threshold, or holding to the end; loses if morale hits 0, the front is wiped, or 60%+ of the garrison falls.
         </p>
       </section>
     </div>
