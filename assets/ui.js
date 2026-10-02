@@ -1,8 +1,8 @@
 // DOM building, rendering and event wiring. All combat maths lives in engine.js.
 import {
-  TIER_KEYS, TYPE_KEYS, COMBAT_KEYS, TIER, TYPE, COUNTERED_BY, STANCE, MARCH, PRESETS,
+  TIER_KEYS, TYPE_KEYS, COMBAT_KEYS, TIER, TYPE, STANCE, MARCH, PRESETS,
   LINEUPS, TIER_MIX, T5_COST, STAT_CAP, TRAP_KEYS, TRAP_TYPE,
-  runSimulation, leadTypes, battleLines, fillTroops, effStat, clamp
+  runSimulation, leadTypes, fillTroops, effStat, clamp
 } from './engine.js';
 
 /* ═══════════════════════════ STATE ═══════════════════════════ */
@@ -52,7 +52,6 @@ const STAT_ROWS = [
   { key:'inf',  label:'Infantry' },
   { key:'rng',  label:'Ranged' },
   { key:'cav',  label:'Cavalry' },
-  { key:'sie',  label:'Siege' },
   { key:'army', label:'Army (all)' }
 ];
 const STAT_COLS = [
@@ -117,7 +116,7 @@ function buildTiers() {
       <div class="flex items-center justify-between bg-slate-950/40 px-4 py-2">
         <div class="flex items-baseline gap-2">
           <span class="font-mono text-xs font-bold tracking-widest text-accent-300">${t.name}</span>
-          <span class="text-xs text-slate-400">${t.role} · ${t.might} might</span>
+          <span class="text-xs text-slate-400">${t.might} might</span>
         </div>
         <div class="flex items-baseline gap-4">
           <span id="tc-${tk}" class="num text-xs font-semibold text-slate-200">0</span>
@@ -208,7 +207,7 @@ function buildDefStats() {
   const eff = `
     <div class="px-4 py-2.5">
       <div class="mb-1 font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400">Effective (type + army)</div>
-      <div id="defEff" class="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4"></div>
+      <div id="defEff" class="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3"></div>
     </div>`;
 
   $('defStatWrap').innerHTML = head + rows + eff;
@@ -217,7 +216,7 @@ function buildDefStats() {
 function renderDefEff() {
   const el = $('defEff');
   if (!el) return;
-  el.innerHTML = TYPE_KEYS.map((yk) => `
+  el.innerHTML = COMBAT_KEYS.map((yk) => `
     <div class="rounded-md bg-slate-950/40 px-2 py-1.5">
       <div class="text-[11px] font-semibold text-slate-300">${TYPE[yk].name}</div>
       <div class="num text-[11px] text-slate-400">
@@ -263,8 +262,6 @@ function renderLunar() {
   setHdr('gear', compact(t5 * T5_COST.gear));
 }
 
-const trapTotal = () => TRAP_KEYS.reduce((s, k) => s + state.def.wall.traps[k], 0);
-
 function renderWall() {
   const w = state.def.wall;
   const up = w.pct > 0;
@@ -273,12 +270,6 @@ function renderWall() {
   $('wallTag').textContent = up ? 'Wall Up · ' + w.pct + '%' : 'Wall Down';
   $('wallTag').className = 'font-mono text-[10px] uppercase tracking-widest ' +
     (up ? 'text-accent-300' : 'text-rose-400');
-  $('wallHint').innerHTML = up
-    ? '<span class="font-semibold text-accent-300">' + n0(trapTotal()) + ' traps active.</span> They take the first shot before the armies trade, ' +
-      'and the garrison is shielded until the wall falls. Damage splits between wall and traps by HP share, so more traps means a longer wall fight. ' +
-      'Each trap type hits its counter twice as hard; siege hits traps twice as hard.'
-    : '<span class="font-semibold text-rose-400">Traps are inert at 0% wall HP.</span> The march engages your troops directly from round 1 — ' +
-      'this is why the same attacker produces wildly different reports on a burning castle.';
 }
 
 function renderFormation() {
@@ -295,22 +286,8 @@ function renderFormation() {
 
   const f = TYPE[state.def.formation];
   const st = STANCE[state.def.stance];
-  const leads = leadTypes(state.def.formation, state.def.stance);
   setHdr('form', f.short + ' ' + st.label);
   $('formTag').textContent = f.name + ' ' + st.label;
-
-  const lines = battleLines(state.def.formation, state.def.stance);
-  const lineTxt = lines.map((l) => l.map((y) => TYPE[y].name).join(' + ')).join(' → ');
-  if (state.def.stance === 'wedge') {
-    const partner = TYPE[leads[1]];
-    $('formHint').innerHTML =
-      '<span class="font-semibold text-accent-300">' + f.name + ' + ' + partner.name + '</span> hold the front together — ' +
-      partner.name + ' screens the ' + TYPE[COUNTERED_BY[f.key]].name + ' that counters ' + f.name + '. Lines: ' + lineTxt + '.';
-  } else {
-    $('formHint').innerHTML =
-      '<span class="font-semibold text-accent-300">' + f.name + '</span> takes every hit until it falls. Deals <span class="font-semibold text-accent-300">2x</span> to ' +
-      TYPE[f.beats].name + ', takes <span class="font-semibold text-rose-400">2x</span> from ' + TYPE[COUNTERED_BY[f.key]].name + '. Lines: ' + lineTxt + '.';
-  }
 }
 
 function renderMarch() {
@@ -357,7 +334,6 @@ function renderAttacker() {
   });
   renderAtkGrid();
 
-  const total = marchTotal();
   $('atkPreview').innerHTML = TYPE_KEYS.map((yk) => {
     const c = marchTypeCount(yk);
     const on = c > 0;
@@ -391,19 +367,11 @@ function renderAttacker() {
     if (TYPE[d].beats === a) defCounters += dS[d] * aS[a];
     if (TYPE[a].beats === d) atkCounters += dS[d] * aS[a];
   }));
-  const name = (types) => types.map((y) => TYPE[y].name).join(' + ');
-  const tierTxt = TIER_KEYS.filter((tk) => TYPE_KEYS.some((yk) => state.atk.troops[tk][yk] > 0))
-    .map((tk) => TIER[tk].name + ' ' + pctTxt(TYPE_KEYS.reduce((s, yk) => s + state.atk.troops[tk][yk], 0), total || 1, 0)).join(' / ');
-  const head = 'Their front: ' + name(atkFront) + '. Yours: ' + name(defFront) + '. March ' + (tierTxt || 'empty') + '.';
-  let txt;
-  if (defCounters > atkCounters) {
-    txt = '<span class="font-semibold text-accent-300">Favourable.</span> Your front counters theirs. ' + head;
-  } else if (atkCounters > defCounters) {
-    txt = '<span class="font-semibold text-rose-400">Countered.</span> Their front counters yours. ' + head;
-  } else {
-    txt = '<span class="font-semibold text-slate-200">Neutral fronts.</span> ' + head;
-  }
-  $('matchup').innerHTML = txt;
+  $('matchup').innerHTML = defCounters > atkCounters
+    ? '<span class="font-semibold text-accent-300">Favourable</span> · your front counters theirs'
+    : atkCounters > defCounters
+    ? '<span class="font-semibold text-rose-400">Countered</span> · their front counters yours'
+    : '<span class="font-semibold text-slate-200">Neutral fronts</span>';
 }
 
 function renderAll() { renderTroops(); renderLunar(); renderWall(); renderFormation(); renderAttacker(); renderDefEff(); renderMana(); }
@@ -432,31 +400,10 @@ function lossRow(label, lost, start) {
 function renderResults(R) {
   const win = R.outcome === 'win' || R.outcome === 'retreat' || R.outcome === 'held';
   const wrap = $('resultsWrap');
-  const frontLabel = R.defLeads.map((yk) => TYPE[yk].name).join(' + ') + ' ' + R.defStanceLabel.toLowerCase();
   const headline = R.outcome === 'win' ? 'LEADER CAPTURED'
                  : R.outcome === 'retreat' ? 'MARCH REPELLED'
                  : R.outcome === 'held' ? 'FRONTLINE HELD'
                  : 'ZEROED / BURNED';
-  const summary = R.outcome === 'win'
-    ? 'Entire march of ' + n0(R.atkStart) + ' destroyed in ' + R.rounds + ' rounds — no back line left to escape. ' + frontLabel +
-      ' held with ' + compact(R.frontLeft) + ' standing and ' + R.morale.toFixed(0) + '% morale.'
-    : R.outcome === 'held'
-    ? 'Engagement ran its full ' + R.rounds + ' rounds. ' + (R.frontLeft > 0.5
-        ? frontLabel + ' still standing with ' + compact(R.frontLeft) + ' troops'
-        : frontLabel + ' fell, but ' + compact(R.defSurv) + ' troops behind it held') +
-      ' at ' + R.morale.toFixed(0) + '% morale; the march kept ' +
-      compact(R.atkSurv) + ' and took ' + R.lossPct.toFixed(1) + '% losses.'
-    : R.outcome === 'retreat'
-    ? 'The march\'s morale broke on round ' + R.rounds + ' after losing ' + R.lossPct.toFixed(1) + '% of its troops. ' +
-      compact(R.atkSurv) + ' troops fled home; ' + frontLabel + ' held at ' + R.morale.toFixed(0) + '% morale.'
-    : (R.lossReason === 'wiped'
-        ? 'Your whole garrison was wiped out on round ' + R.rounds + '. '
-        : R.lossReason === 'attrition'
-        ? 'Engagement ran its full ' + R.rounds + ' rounds and you lost ' + pctTxt(R.defLost, R.armyStart, 1) +
-          ' of the garrison (60%+ counts as a loss) with morale still at ' + R.morale.toFixed(0) + '%. '
-        : 'Morale collapsed on round ' + R.rounds + '. ') +
-      compact(R.atkSurv) + ' attacker troops still marching (' + R.lossPct.toFixed(1) + '% of the march lost, enemy morale ' +
-      R.atkMorale.toFixed(0) + '%).';
 
   const banner = `
   <div class="fade overflow-hidden rounded-xl border ${win ? 'border-accent-500/50' : 'border-rose-500/50'} bg-slate-900/60">
@@ -465,7 +412,6 @@ function renderResults(R) {
       <div class="mt-0.5 text-lg font-bold tracking-tight ${win ? 'text-accent-200' : 'text-rose-200'}">
         ${headline}
       </div>
-      <p class="mt-1 text-xs leading-relaxed text-slate-300">${summary}</p>
     </div>
 
     <div class="px-4 py-3">
@@ -547,7 +493,7 @@ function renderResults(R) {
       <div class="px-4 py-2.5">
         <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Inflicted Losses</div>
         <div class="num text-sm font-semibold text-accent-300">${n0(R.atkLost)} · ${compact(R.atkMightLost)} might</div>
-        <div class="num text-[11px] text-slate-400">${n0(R.atkDead)} dead · ${n0(R.atkWounded)} wounded (${R.event ? 'event: no deaths' : '60/40 rule'})</div>
+        <div class="num text-[11px] text-slate-400">${n0(R.atkDead)} dead · ${n0(R.atkWounded)} wounded</div>
       </div>
       <div class="px-4 py-2.5">
         <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Survived Troops</div>
@@ -598,14 +544,6 @@ function renderResults(R) {
       <div class="h-2 overflow-hidden rounded-full bg-slate-800">
         <div class="bar h-full ${R.wallHpLeft > 0.5 ? 'bg-accent-500' : 'bg-rose-500'}" style="width:${clamp(R.wallPctLeft, 0, 100)}%"></div>
       </div>
-      <p class="mt-2 text-xs leading-relaxed text-slate-400">
-        ${R.wallStood
-          ? 'The wall stood for ' + R.wallRounds + ' round' + (R.wallRounds === 1 ? '' : 's') +
-            '. Traps killed <span class="font-semibold text-accent-300">' + compact(R.trapKills) + '</span> attackers (' +
-            compact(R.trapVolleyKills) + ' in the opening volley); your garrison killed ' + compact(R.wallKills - R.trapKills) +
-            ' more in that time. Wall started at ' + R.wallStartPct.toFixed(0) + '% HP. The garrison was shielded until the wall fell.'
-          : 'Wall HP was 0, so every trap was inert and the march hit the garrison directly from round 1.'}
-      </p>
     </div>
     <div class="grid grid-cols-2 divide-x divide-y divide-slate-800 border-t border-slate-800 sm:grid-cols-4 sm:divide-y-0">
       <div class="px-4 py-2.5">
@@ -631,6 +569,14 @@ function renderResults(R) {
   const wardCap = Math.max(0, state.def.infirmary);
   const wardFill = clamp(pct(R.wounded, wardCap || 1), 0, 100);
 
+  const tile = (label, value, cls) => `
+      <div class="px-4 py-3">
+        <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">${label}</div>
+        <div class="num text-base font-bold ${cls}">${n0(value)}</div>
+      </div>`;
+  // resource bills only show when there is something to pay
+  const bills = [['T5 Heal Bill', R.t5Wounded, R.healCost], ['T5 Rebuild Bill', R.t5Dead, R.rebuildCost]].filter(([, n]) => n > 0.5);
+
   const wardCard = `
   <div class="fade overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60">
     <div class="border-b border-slate-800 px-4 py-3">
@@ -641,54 +587,22 @@ function renderResults(R) {
     <div class="px-4 py-3.5">
       <div class="mb-1.5 flex items-baseline justify-between">
         <span class="text-sm font-medium text-slate-300">Infirmary</span>
-        <span class="num text-sm text-slate-300">${n0(R.wounded)} / ${n0(wardCap)} · ${wardFill.toFixed(0)}% full</span>
+        <span class="num text-sm text-slate-300">${n0(R.wounded)} / ${n0(wardCap)}</span>
       </div>
       <div class="h-2 overflow-hidden rounded-full bg-slate-800">
         <div class="bar h-full bg-accent-500" style="width:${wardFill}%"></div>
       </div>
-      <p class="mt-2 text-xs text-slate-400">Triage priority ${TIER_KEYS.slice().reverse().map((tk) => TIER[tk].name).join(' → ')}${
-        TIER_KEYS.slice().reverse().filter((tk) => R.ward[tk] > 0.5).length
-          ? ' · ' + TIER_KEYS.slice().reverse().filter((tk) => R.ward[tk] > 0.5)
-              .map((tk) => TIER[tk].name + ' ' + compact(R.ward[tk])).join(' · ')
-          : ' · no wounded'}</p>
     </div>
 
-    <div class="grid grid-cols-1 divide-y divide-slate-800 border-t border-slate-800 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-      <div class="px-4 py-3">
-        <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Wounded (Healable)</div>
-        <div class="num text-base font-bold text-accent-300">${n0(R.wounded)}</div>
-        <div class="text-xs text-slate-400">${pctTxt(R.wounded, R.defLost, 1)} of casualties</div>
-      </div>
-      <div class="px-4 py-3">
-        <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Sanctuary</div>
-        <div class="num text-base font-bold text-slate-100">${n0(R.sanctuary)}</div>
-        <div class="text-xs text-slate-400">${R.sanctuaryCap > 0 ? n0(R.sanctuaryCap) + ' capacity' : 'no capacity entered'}</div>
-      </div>
-      <div class="px-4 py-3">
-        <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">Permanently Dead</div>
-        <div class="num text-base font-bold text-rose-400">${n0(R.dead)}</div>
-        <div class="text-xs text-slate-400">after Divine Providence</div>
-      </div>
+    <div class="grid grid-cols-2 divide-x divide-y divide-slate-800 border-t border-slate-800 sm:grid-cols-4 sm:divide-y-0">
+      ${tile('Wounded', R.wounded, 'text-accent-300')}
+      ${tile('Sanctuary', R.sanctuary, 'text-slate-100')}
+      ${tile('Divine Providence', R.divine, 'text-amber-300')}
+      ${tile('Dead', R.dead, 'text-rose-400')}
     </div>
-
-    <div class="border-t border-slate-800 px-4 py-3.5">
-      <div class="mb-1.5 flex items-baseline justify-between">
-        <span class="text-sm font-medium text-slate-300">Infirmary Overflow · ${n0(R.overflow)}</span>
-        <span class="num text-sm font-semibold text-accent-300">${n0(R.sanctuary + R.divine)} recoverable</span>
-      </div>
-      <div class="flex h-2 overflow-hidden rounded-full bg-slate-800">
-        <div class="bar h-full bg-accent-500" style="width:${clamp(pct(R.sanctuary, R.overflow || 1), 0, 100)}%"></div>
-        <div class="bar h-full bg-amber-400" style="width:${clamp(pct(R.divine, R.overflow || 1), 0, 100)}%"></div>
-        <div class="bar h-full bg-rose-500" style="width:${clamp(pct(R.dead, R.overflow || 1), 0, 100)}%"></div>
-      </div>
-      <div class="mt-1.5 flex flex-wrap justify-between gap-x-3 text-xs text-slate-400">
-        <span>Sanctuary ${compact(R.sanctuary)}</span><span>Divine Providence ${compact(R.divine)}</span><span>Lost forever ${compact(R.dead)}</span>
-      </div>
-      <p class="mt-2 text-xs text-slate-400">Overflow beyond the infirmary: 80% goes to the Sanctuary while it has space; of the rest, Divine Providence revives 10% free.</p>
-    </div>
-
-    <div class="grid grid-cols-1 divide-y divide-slate-800 border-t border-slate-800 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-      ${[['T5 Heal Bill', R.t5Wounded, R.healCost], ['T5 Rebuild Bill', R.t5Dead, R.rebuildCost]].map(([title, n, c]) => `
+    ${bills.length ? `
+    <div class="grid grid-cols-1 divide-y divide-slate-800 border-t border-slate-800 ${bills.length > 1 ? 'sm:grid-cols-2 sm:divide-x sm:divide-y-0' : ''}">
+      ${bills.map(([title, n, c]) => `
         <div class="px-4 py-3">
           <div class="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">${title} · ${compact(n)} units</div>
           <div class="mt-1.5 grid grid-cols-5 gap-2 text-center">
@@ -699,7 +613,7 @@ function renderResults(R) {
               </div>`).join('')}
           </div>
         </div>`).join('')}
-    </div>
+    </div>` : ''}
   </div>`;
 
   const step = Math.max(1, Math.ceil(R.log.length / 10));

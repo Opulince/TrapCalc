@@ -98,7 +98,6 @@
           <div class="px-4 py-3">
             <div class="mb-1.5 flex items-baseline justify-between gap-3">
               <span class="shrink-0 whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Mana Lv</span>
-              <span class="text-right text-[11px] text-slate-400">+2% troop power per level · siege can't be charged</span>
             </div>
             <div class="grid grid-cols-3 gap-2">
               <label class="block"><span class="mb-1 block text-[11px] text-slate-400">Infantry</span>
@@ -125,7 +124,6 @@
             <button data-stance="phalanx" class="defStanceBtn px-2 py-2 text-xs font-semibold transition">Phalanx</button>
             <button data-stance="wedge" class="defStanceBtn px-2 py-2 text-xs font-semibold transition">Wedge</button>
           </div>
-          <p id="formHint" class="mt-2.5 text-xs leading-relaxed text-slate-400"></p>
         </div>
 
         <div class="border-t border-slate-800 px-4 py-3.5">
@@ -181,7 +179,6 @@
               </div>
             </label>
           </div>
-          <p id="wallHint" class="mt-2 text-xs leading-relaxed text-slate-400"></p>
         </div>
 
         <div class="divide-y divide-slate-800 border-t border-slate-800">
@@ -214,8 +211,7 @@
         </div>
         <label class="flex cursor-pointer items-start gap-2.5 border-t border-slate-800 px-4 py-3">
           <input id="inEvent" type="checkbox" class="mt-0.5 h-4 w-4 accent-cyan-500" />
-          <span class="text-xs leading-relaxed text-slate-400"><span class="font-semibold text-slate-200">Event battle (no deaths)</span> — e.g. Chaos Arena:
-            every casualty on both sides is wounded, nobody dies.</span>
+          <span class="text-xs font-semibold text-slate-200">Event battle (no deaths)</span>
         </label>
       </section>
 
@@ -288,9 +284,6 @@
             <div id="costGems" class="num text-sm font-semibold text-slate-200">0</div>
           </div>
         </div>
-        <p class="border-t border-slate-800 px-4 py-2.5 text-xs leading-relaxed text-slate-400">
-          Per T5: 18,000 Food · 14,000 Timber · 6,000 Stone · 3,600 Ore · 1 Luminous Gear. Healing costs 30% of resources, gear unchanged.
-        </p>
       </section>
     </div>
 
@@ -374,7 +367,6 @@
           <div class="px-4 py-3">
             <div class="mb-1.5 flex items-baseline justify-between gap-3">
               <span class="shrink-0 whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Mana Lv</span>
-              <span class="text-right text-[11px] text-slate-400">+2% troop power per level · siege can't be charged</span>
             </div>
             <div class="grid grid-cols-3 gap-2">
               <label class="block"><span class="mb-1 block text-[11px] text-slate-400">Infantry</span>
@@ -463,19 +455,6 @@
       <!-- RESULTS -->
       <section id="resultsWrap" class="space-y-5"></section>
 
-      <section class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3.5">
-        <div class="font-mono text-[10px] uppercase tracking-[0.22em] text-slate-400">Engine Reference</div>
-        <p class="mt-1.5 text-xs leading-relaxed text-slate-400">
-          Counter triangle: <span class="text-slate-200">Infantry &gt; Ranged &gt; Cavalry &gt; Infantry</span>; a counter doubles damage against the countered type.
-          Every troop type fights as <span class="text-slate-200">4 squads</span>, each holding a quarter of every tier; inside a squad the lowest tier dies first.
-          A phalanx puts its 4 lead squads in front; a wedge puts 2 lead squads first, then 2 squads of the type it counters. Then the other types, then
-          <span class="text-slate-200">siege at the very back</span> — a finishing blow does not carry over, so a little siege can keep a march from being wiped and its leader captured.
-          Your squads take hits side by side; the attacker's go one after another. Front squads fight at full output, the rest at 45%.
-          While the <span class="text-slate-200">wall</span> stands, traps strike first; spikes, towers and logs each hit their counter type twice as hard, siege hits traps twice as hard,
-          and troop counters do not apply to the wall. Mana adds 2% per level. Both armies have <span class="text-slate-200">morale</span>; at 0% an army retreats.
-          Up to 15 rounds; familiar talents fire every 3rd round. Fitted to six real battle reports — see the calibration notes for what is confirmed and what is still estimated.
-        </p>
-      </section>
     </div>
   </div>
   <footer class="mx-auto mt-8 max-w-[1500px] border-t border-slate-800 px-4 py-6 text-xs text-slate-400">
