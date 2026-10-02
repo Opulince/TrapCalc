@@ -1,5 +1,5 @@
 // Stages exactly the public files for deployment into dist/.
-// Run via `npm run stage` (called automatically by `npm run deploy`).
+// Run via `npm run stage` (called automatically by `npm run package`).
 import { rmSync, mkdirSync, cpSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';

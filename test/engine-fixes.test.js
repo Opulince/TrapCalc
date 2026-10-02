@@ -128,3 +128,21 @@ test('an empty formation type fights exactly like picking the type that is actua
   assert.equal(asCav.defLost, asInf.defLost);
   assert.equal(asCav.outcome, asInf.outcome);
 });
+
+// A castle with no troops still has its wall and traps: the battle is not lost until the wall falls.
+const NO_TROOPS = { t1: {}, t2: {}, t3: {}, t4: {}, t5: {} };
+
+test('an empty garrison behind a standing wall is not wiped on round 1', () => {
+  const R = runSimulation(cfgWith((c) => { c.troops = NO_TROOPS; }));
+  assert.ok(R.rounds > 1, `ended on round ${R.rounds}`);
+  assert.ok(R.wallRounds > 0 && R.trapLost > 0, 'the march should have to fight the wall and traps');
+});
+
+test('the wall is not protected by how few troops sit behind it', () => {
+  // Same wall and traps; 1,000 T1 troops vs the full garrison. Before the fix the march's damage
+  // to the wall was capped by the garrison's size, so the tiny garrison's wall barely took a scratch.
+  const tiny = runSimulation(cfgWith((c) => { c.troops = { ...NO_TROOPS, t1: { inf: 1000 } }; }));
+  const full = runSimulation(BASE);
+  assert.ok(tiny.wallPctLeft <= full.wallPctLeft + 1e-9,
+    `tiny garrison wall ${tiny.wallPctLeft.toFixed(1)}% vs full garrison ${full.wallPctLeft.toFixed(1)}%`);
+});

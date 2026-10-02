@@ -89,7 +89,7 @@ const typeCountOf = (y) => TIER_KEYS.reduce((s, t) => s + state.troops[t][y], 0)
 function buildTiers() {
   $('tierWrap').innerHTML = TIER_KEYS.map((tk) => {
     const t = TIER[tk];
-    const rows = TYPE_KEYS.map((yk) => `
+    const rows = COMBAT_KEYS.map((yk) => `
       <div class="grid grid-cols-12 items-center gap-x-3 gap-y-1 px-4 py-2.5">
         <div class="col-span-12 flex items-baseline justify-between sm:col-span-3">
           <span class="text-sm font-medium text-slate-300">${TYPE[yk].name}</span>
@@ -146,14 +146,14 @@ function buildLineups() {
 
 // The march as the report shows it: one box per tier x type.
 function buildAtkGrid() {
-  const cols = 'grid grid-cols-[1.75rem_repeat(4,minmax(0,1fr))] gap-1';
+  const cols = 'grid grid-cols-[1.75rem_repeat(3,minmax(0,1fr))] gap-1';
   const head = `<div class="${cols} pb-1">
-    <span></span>${TYPE_KEYS.map((yk) => `<span class="text-right font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">${TYPE[yk].short}</span>`).join('')}
+    <span></span>${COMBAT_KEYS.map((yk) => `<span class="text-right font-mono text-[9px] uppercase tracking-[0.16em] text-slate-400">${TYPE[yk].short}</span>`).join('')}
   </div>`;
   const rows = TIER_KEYS.map((tk) => `
     <div class="${cols} items-center py-0.5">
       <span class="font-mono text-xs font-bold tracking-widest text-rose-300">${TIER[tk].name}</span>
-      ${TYPE_KEYS.map((yk) => `
+      ${COMBAT_KEYS.map((yk) => `
         <input data-atk-tier="${tk}" data-atk-type="${yk}" type="number" min="0" step="1000" value="${state.atk.troops[tk][yk]}"
           class="field rose num w-full px-1 py-1 text-right text-[11px] font-semibold text-rose-200 sm:text-[12px]"
           aria-label="Attacker ${TIER[tk].name} ${TYPE[yk].name}" />`).join('')}
@@ -228,7 +228,7 @@ function renderDefEff() {
 /* ═══════════════════════════ RENDER ═══════════════════════════ */
 function renderTroops() {
   TIER_KEYS.forEach((tk) => {
-    TYPE_KEYS.forEach((yk) => {
+    COMBAT_KEYS.forEach((yk) => {
       const v = state.troops[tk][yk];
       const sl = $('sl-' + tk + '-' + yk), inp = $('in-' + tk + '-' + yk);
       if (document.activeElement !== sl) sl.value = v;
@@ -334,7 +334,7 @@ function renderAttacker() {
   });
   renderAtkGrid();
 
-  $('atkPreview').innerHTML = TYPE_KEYS.map((yk) => {
+  $('atkPreview').innerHTML = COMBAT_KEYS.map((yk) => {
     const c = marchTypeCount(yk);
     const on = c > 0;
     return `
@@ -799,7 +799,8 @@ $('inInfirmary').addEventListener('input', (e) => { state.def.infirmary = Math.m
 $('inSanctuary').addEventListener('input', (e) => { state.def.sanctuary = Math.max(0, Number(e.target.value) || 0); });
 
 $('btnResetTroops').addEventListener('click', () => {
-  // the baseline garrison has no siege — that row is opt-in
+  // Siege is not an input: in-game it barely matters (player, 2026-10-02). It stays 0 here;
+  // the engine still handles it so reports with Destroyers replay in the tests.
   TIER_KEYS.forEach((tk) => TYPE_KEYS.forEach((yk) => { state.troops[tk][yk] = yk === 'sie' ? 0 : TIER[tk].base; }));
   renderTroops(); renderLunar();
 });

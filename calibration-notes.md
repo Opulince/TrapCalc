@@ -26,6 +26,10 @@ Anything not listed here as *confirmed* is still an estimate.
 - **Siege sits at the back.** Player experience: 10k T1 siege can be all that keeps a march from
   being wiped and its leader captured. The model reproduces this only if a finishing blow does
   not carry over into the next line in the same round (`PARAMS.lineSpill = false`).
+  *2026-10-02:* the player now reports siege makes a negligible difference in-game, so it is no
+  longer an input in the app (always 0). The engine still models it so reports 2, 4 and 5 (which
+  contain Destroyers) replay exactly. The two statements conflict; if siege really is negligible,
+  the anecdote that justified `lineSpill = false` is in doubt too — it fits equally well either way.
 - **Morale is on both sides** (player-confirmed, NamuWiki): an army retreats at 0%.
 - **Mana Chamber** (in-game text): +2% troop power per level, levels 1-6, per type (inf/rng/cav);
   siege is not chargeable. Report 7's might totals match plain per-tier might, so mana changes
@@ -308,6 +312,12 @@ Findings from the fit:
 - Picking a formation type with zero troops forced morale to 0 on round 1 and lost instantly
   regardless of army size. Morale now follows the squads actually holding the line.
 - Attacker tier mixes extended to the full T1–T5 ladder (was T4/T5 only).
+- *2026-10-02:* a castle with no troops lost on round 1 with its wall and traps untouched — the
+  "garrison wiped" check ignored the wall. It now only fires once the wall is down too.
+- *2026-10-02:* the march's per-round damage to the wall was capped by the garrison's size, so a
+  small garrison made its wall almost unbreakable (a Titan solo left a 565K wall at 94% after 15
+  rounds against 1,000 troops). The cap is now the larger of the garrison's and the wall + traps'.
+  Every fitted report is unchanged (their garrisons were big enough that the old cap never bit).
 
 ## Still wrong / still invented
 

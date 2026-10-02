@@ -435,6 +435,10 @@ export function runSimulation(cfg) {
       (1 + COUNTER_BONUS * (sh[TRAP_TYPE[k].beats] || 0)), 0) * P.damageScale;
   };
   const wallStood = wallHp > 0.5;
+  // The march's per-round cap against the wall. The garrison's cap alone (defBite) meant a castle
+  // with few or no troops had a wall the march could barely scratch, however strong the march.
+  // Taking the larger of the two keeps every fitted report unchanged (their garrisons are big).
+  const wallBite = Math.max(defBite, (wallStartHp + trapStart * trapEhpEach) * P.bite);
   // wallKills = every attacker killed while the wall stood; trapKills = the part the traps did
   let wallRounds = 0, wallKills = 0, trapKills = 0, trapVolleyKills = 0;
 
@@ -477,7 +481,7 @@ export function runSimulation(cfg) {
       const plainOut = armyOutput(A, { inf:0, rng:0, cav:0, sie:0 });
       const siegeBoost = plainOut > 0 ? 1 + COUNTER_BONUS * (siegeOut / plainOut) : 1;
       let wallDmg = plainOut * P.damageScale * atkMorale.output();
-      wallDmg = Math.min(wallDmg, defBite) * (burst ? 1 + num(S.atk.familiar) / 100 : 1);
+      wallDmg = Math.min(wallDmg, wallBite) * (burst ? 1 + num(S.atk.familiar) / 100 : 1);
 
       const beforeAtk = A.alive();
       const trapDmg = trapOutput();
@@ -520,7 +524,8 @@ export function runSimulation(cfg) {
 
     // the defender is favoured on a same-round tie, as before
     if (A.alive() <= 0.5) { outcome = 'win'; break; }
-    if (D.alive() <= 0.5) { outcome = 'loss'; lossReason = 'wiped'; break; }
+    // an empty garrison is only beaten once the wall is down too — until then the traps fight on
+    if (D.alive() <= 0.5 && wallHp <= 0.5) { outcome = 'loss'; lossReason = 'wiped'; break; }
     if (atkMorale.value <= 0) { outcome = 'retreat'; break; }
     if (defMorale.value <= 0) { outcome = 'loss'; lossReason = 'morale'; break; }
   }
