@@ -151,6 +151,9 @@ Six guides, all substantially drafted already in `calibration-notes.md`:
 
 Each guide ends with a link into the simulator pre-filled with that scenario.
 
+*Built 2026-10-02:* the inputs live in the URL hash (`#s=1.…`, `assets/share.js`), so any setup is
+a link — set it up in the simulator, press **Copy link**, paste it into the guide.
+
 **Discord-first detail:** proper Open Graph cards. The primary distribution channel is guild
 Discord, which unfurls links; a titled card with a screenshot materially outperforms a bare URL.
 Plus per-page title/meta, `sitemap.xml`, `robots.txt`.

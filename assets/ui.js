@@ -4,6 +4,7 @@ import {
   LINEUPS, TIER_MIX, T5_COST, STAT_CAP, TRAP_KEYS, TRAP_TYPE,
   runSimulation, leadTypes, fillTroops, effStat, clamp
 } from './engine.js';
+import { encodeState, decodeState } from './share.js';
 
 /* ═══════════════════════════ STATE ═══════════════════════════ */
 // Mirrors the in-game stat screen. Troop-type and Army bonuses stack additively,
@@ -44,6 +45,9 @@ const state = {
          formation:'cav', stance:'phalanx', familiar:20, troops: fillTroops(250000, 'cav', 't4'),
          mana: { inf:0, rng:0, cav:0 } }
 };
+// Snapshot before anything changes: share links store only what differs from this.
+const DEFAULT_STATE = structuredClone(state);
+
 const refillMarch = () => { state.atk.troops = fillTroops(state.atk.total, state.atk.lineup, state.atk.tierMix); };
 const marchTotal = () => TIER_KEYS.reduce((s, tk) => s + TYPE_KEYS.reduce((q, yk) => q + state.atk.troops[tk][yk], 0), 0);
 const marchTypeCount = (yk) => TIER_KEYS.reduce((s, tk) => s + state.atk.troops[tk][yk], 0);
@@ -374,7 +378,10 @@ function renderAttacker() {
     : '<span class="font-semibold text-slate-200">Neutral fronts</span>';
 }
 
-function renderAll() { renderTroops(); renderLunar(); renderWall(); renderFormation(); renderAttacker(); renderDefEff(); renderMana(); }
+function renderAll() {
+  renderTroops(); renderLunar(); renderWall(); renderFormation(); renderAttacker(); renderDefEff(); renderMana();
+  $('inEvent').checked = state.event;
+}
 
 
 /* ═══════════════════════════ RESULTS UI ═══════════════════════════ */
@@ -398,7 +405,17 @@ function lossRow(label, lost, start) {
 }
 
 function renderResults(R) {
-  const win = R.outcome === 'win' || R.outcome === 'retreat' || R.outcome === 'held';
+  // 'held' only reads as a win when the garrison lost a smaller share of its army than the march
+  // did; otherwise it is a costly hold and shows amber.
+  const defLossPct = pct(R.defLost, R.armyStart);
+  const tone = R.outcome === 'win' || R.outcome === 'retreat' ? 'good'
+             : R.outcome === 'held' ? (defLossPct < R.lossPct ? 'good' : 'warn')
+             : 'bad';
+  const T = {
+    good: { border:'border-accent-500/50', head:'border-accent-500/30 bg-accent-500/10', label:'text-accent-300', title:'text-accent-200' },
+    warn: { border:'border-amber-500/50',  head:'border-amber-500/30 bg-amber-500/10',   label:'text-amber-300',  title:'text-amber-200' },
+    bad:  { border:'border-rose-500/50',   head:'border-rose-500/30 bg-rose-500/10',     label:'text-rose-300',   title:'text-rose-200' }
+  }[tone];
   const wrap = $('resultsWrap');
   const headline = R.outcome === 'win' ? 'LEADER CAPTURED'
                  : R.outcome === 'retreat' ? 'MARCH REPELLED'
@@ -406,11 +423,11 @@ function renderResults(R) {
                  : 'ZEROED / BURNED';
 
   const banner = `
-  <div class="fade overflow-hidden rounded-xl border ${win ? 'border-accent-500/50' : 'border-rose-500/50'} bg-slate-900/60">
-    <div class="border-b ${win ? 'border-accent-500/30 bg-accent-500/10' : 'border-rose-500/30 bg-rose-500/10'} px-4 py-3.5">
-      <div class="font-mono text-[10px] uppercase tracking-[0.22em] ${win ? 'text-accent-300' : 'text-rose-300'}">Battle Result</div>
-      <div class="mt-0.5 text-lg font-bold tracking-tight ${win ? 'text-accent-200' : 'text-rose-200'}">
-        ${headline}
+  <div class="fade overflow-hidden rounded-xl border ${T.border} bg-slate-900/60">
+    <div class="border-b ${T.head} px-4 py-3.5">
+      <div class="font-mono text-[10px] uppercase tracking-[0.22em] ${T.label}">Battle Result</div>
+      <div class="mt-0.5 text-lg font-bold tracking-tight ${T.title}">
+        ${headline}${tone === 'warn' ? ' <span class="text-xs font-semibold text-amber-300/80">· costly</span>' : ''}
       </div>
     </div>
 
@@ -859,8 +876,49 @@ function doSim(btn) {
 $('btnSim').addEventListener('click', (e) => doSim(e.currentTarget));
 $('btnSimMobile').addEventListener('click', (e) => doSim(e.currentTarget));
 
+/* ═══════════════════════════ SHARE LINKS ═══════════════════════════ */
+// The URL hash always mirrors the inputs, so a reload keeps them and the address is shareable.
+// replaceState: editing inputs must not pile up browser history entries.
+let writeTimer = 0;
+function writeUrl() {
+  clearTimeout(writeTimer);
+  const h = encodeState(DEFAULT_STATE, state);
+  const url = location.pathname + location.search + (h ? '#' + h : '');
+  if (url === location.pathname + location.search + location.hash) return;
+  try { history.replaceState(null, '', url); } catch (err) { console.error(err); }
+}
+const scheduleWrite = () => { clearTimeout(writeTimer); writeTimer = setTimeout(writeUrl, 300); };
+['input', 'change', 'click'].forEach((t) => document.addEventListener(t, scheduleWrite));
+
+// Load inputs from the hash. A bare URL means the defaults; a broken link is ignored.
+function applyHash() {
+  const s = location.hash ? decodeState(DEFAULT_STATE, location.hash) : structuredClone(DEFAULT_STATE);
+  if (!s) return false;
+  Object.assign(state, s);
+  return true;
+}
+// a share link pasted into an open tab only changes the hash — no reload
+window.addEventListener('hashchange', () => { if (applyHash()) { renderAll(); syncAllInputs(); } });
+
+async function copyLink(btn) {
+  writeUrl();
+  const url = location.href;
+  if (!btn.dataset.label) btn.dataset.label = btn.textContent;
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch {
+    // no clipboard access (plain http, older browsers): let the user copy it by hand
+    window.prompt('Copy this link:', url);
+    return;
+  }
+  btn.textContent = 'Copied';
+  setTimeout(() => { btn.textContent = btn.dataset.label; }, 1500);
+}
+document.querySelectorAll('.shareBtn').forEach((b) => b.addEventListener('click', () => copyLink(b)));
+
 /* ═══════════════════════════ INIT ═══════════════════════════ */
 try {
+  applyHash();
   buildTiers();
   buildLineups();
   buildTierMixes();
