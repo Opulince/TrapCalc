@@ -511,7 +511,7 @@ function renderResults(R) {
         <div class="font-mono text-[10px] uppercase tracking-[0.22em] text-slate-400">05 — Casualties</div>
         <h3 class="text-sm font-semibold text-slate-50">Defender Squad Breakdown</h3>
       </div>
-      <span class="num text-xs font-semibold text-slate-300">${pctTxt(R.defLost, R.armyStart, 1)} of garrison</span>
+      <span class="num text-xs font-semibold text-slate-300">${pctTxt(R.defLost, R.armyStart, 1)} of your comp</span>
     </div>
     <div class="overflow-x-auto px-4 py-1">
       <table class="w-full min-w-[440px]">
