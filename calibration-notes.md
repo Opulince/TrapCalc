@@ -191,6 +191,13 @@ Defender stat block not shown — the player's is used.
 **Status: reproduces.** Fitted attacker 400 / 250 / 550: wiped in 13 rounds, wall falls in round 5,
 defender lost 111,823 (−0.7%): T1 rng 46,077 ✓, T2 rng 65,746 (−1.2%), everything else 0 ✓.
 
+## Report presets in the app
+
+Every attacking march below (R2-R7) is a one-click preset ("From real reports"), with the attacker
+stats the fit found for it — no player names. `test/presets.test.js` fails if a preset drifts from
+its report or stops reproducing it as well as the fit does; **after a refit, update
+`REPORT_PRESETS` in `assets/engine.js` and `FIT_ERROR` in that test.**
+
 ## Reports 5, 6, 7 (full tables in `test/reports.js`)
 
 - **R5** — Chaos Arena. HADY (~600 ATK) Infantry Phalanx 378,000 (374,902 T4 inf + 3,098 Destroyer)

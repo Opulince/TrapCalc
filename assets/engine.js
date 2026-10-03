@@ -49,6 +49,25 @@ export const PRESETS = {
   rally: { march:'rally', size:2450000, stat:1400, def:1250, hp:1400, tier:'t5h'  }
 };
 
+// Real attacking marches from the calibration reports (test/reports.js), each with the attacker
+// stats the fit found for it (`npm run calibrate`). No player names: a preset describes the march,
+// not who sent it. Siege is left out because it is not an input — R5 also sent 3,098 T4 siege and
+// R7 6,000. test/presets.test.js keeps these in step with the reports.
+export const REPORT_PRESETS = {
+  r2: { report:'R2', label:'100K T4 Mix',        formation:'inf', stance:'phalanx', stat:1200, def:100, hp:1000, mana:0,
+        troops:{ t4:{ inf:40000, rng:25000, cav:35000 } } },
+  r3: { report:'R3', label:'256K Cavalry Wedge', formation:'rng', stance:'wedge',   stat:1300, def:100, hp:1300, mana:1,
+        troops:{ t5:{ cav:132018 }, t4:{ inf:4000, rng:4000, cav:115982 } } },
+  r4: { report:'R4', label:'378K T5/T4 Cavalry', formation:'rng', stance:'phalanx', stat:400,  def:100, hp:850,  mana:0,
+        troops:{ t5:{ cav:135044 }, t4:{ cav:242956 } } },
+  r5: { report:'R5', label:'375K T4 Infantry',   formation:'inf', stance:'phalanx', stat:650,  def:250, hp:250,  mana:0,
+        troops:{ t4:{ inf:374902 } } },
+  r6: { report:'R6', label:'378K T4 Mix',        formation:'inf', stance:'phalanx', stat:650,  def:250, hp:250,  mana:0,
+        troops:{ t4:{ inf:123493, rng:150396, cav:104111 } } },
+  r7: { report:'R7', label:'384K Max Account',   formation:'inf', stance:'phalanx', stat:1000, def:100, hp:850,  mana:3,
+        troops:{ t5:{ inf:85000, rng:60000, cav:60000 }, t4:{ inf:80000, rng:50000, cav:49000 } } }
+};
+
 // Composition shortcuts used to FILL the attacker's squad grid. parts: inf - rng - cav.
 export const LINEUPS = {
   inf:      { label:'Full Infantry', parts:[1, 0, 0] },

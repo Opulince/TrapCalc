@@ -1,6 +1,6 @@
 // DOM building, rendering and event wiring. All combat maths lives in engine.js.
 import {
-  TIER_KEYS, TYPE_KEYS, COMBAT_KEYS, TIER, TYPE, STANCE, MARCH, PRESETS,
+  TIER_KEYS, TYPE_KEYS, COMBAT_KEYS, TIER, TYPE, STANCE, MARCH, PRESETS, REPORT_PRESETS, emptyTroops,
   LINEUPS, TIER_MIX, T5_COST, STAT_CAP, TRAP_KEYS, TRAP_TYPE,
   runSimulation, leadTypes, fillTroops, effStat, clamp
 } from './engine.js';
@@ -173,7 +173,34 @@ function renderAtkGrid() {
   });
   const fill = fillTroops(state.atk.total, state.atk.lineup, state.atk.tierMix);
   const custom = TIER_KEYS.some((tk) => TYPE_KEYS.some((yk) => Math.round(fill[tk][yk]) !== Math.round(state.atk.troops[tk][yk])));
-  $('atkGridTag').textContent = n0(marchTotal()) + ' troops' + (custom ? ' · custom' : ' · from quick fill');
+  $('atkGridTag').textContent = n0(marchTotal()) + ' troops' +
+    (activeReportPreset() ? ' · from a report' : custom ? ' · custom' : ' · from quick fill');
+}
+
+// Real marches from the calibration reports: exact squad grid, lineup, mana and fitted stats.
+function buildReportPresets() {
+  $('reportPresets').innerHTML = Object.keys(REPORT_PRESETS).map((k) => {
+    const p = REPORT_PRESETS[k];
+    return `<button type="button" data-rpreset="${k}" class="rpresetBtn px-3 py-2.5 text-left transition">
+      <span class="block text-xs font-semibold">${p.label}</span>
+      <span class="block font-mono text-[10px] text-slate-400">${p.stat}% · ${TYPE[p.formation].short} ${STANCE[p.stance].label}</span>
+    </button>`;
+  }).join('');
+}
+const reportGrid = (p) => {
+  const o = emptyTroops();
+  TIER_KEYS.forEach((tk) => COMBAT_KEYS.forEach((yk) => { o[tk][yk] = (p.troops[tk] || {})[yk] || 0; }));
+  return o;
+};
+// the report preset the attacker currently matches, if any
+function activeReportPreset() {
+  const A = state.atk;
+  return Object.keys(REPORT_PRESETS).find((k) => {
+    const p = REPORT_PRESETS[k], g = reportGrid(p);
+    return A.stat === p.stat && A.def === p.def && A.hp === p.hp && A.formation === p.formation && A.stance === p.stance &&
+      COMBAT_KEYS.every((yk) => (A.mana[yk] || 0) === p.mana) &&
+      TIER_KEYS.every((tk) => TYPE_KEYS.every((yk) => Math.round(A.troops[tk][yk]) === g[tk][yk]));
+  });
 }
 
 // Mana level pickers (0-6) for both sides.
@@ -354,9 +381,14 @@ function renderAttacker() {
     const p = PRESETS[b.dataset.preset];
     const on = state.atk.march === p.march && state.atk.total === p.size && state.atk.stat === p.stat &&
                state.atk.def === p.def && state.atk.hp === p.hp && state.atk.tierMix === p.tier &&
-               $('atkGridTag').textContent.indexOf('custom') < 0;
+               $('atkGridTag').textContent.indexOf('quick fill') >= 0;
     b.className = 'presetBtn px-3 py-2.5 text-left transition ' +
       (on ? 'bg-rose-500/15 text-rose-100 ring-1 ring-inset ring-rose-500/50' : 'bg-slate-900 text-slate-200 hover:bg-slate-800');
+  });
+  const rp = activeReportPreset();
+  document.querySelectorAll('.rpresetBtn').forEach((b) => {
+    b.className = 'rpresetBtn px-3 py-2.5 text-left transition ' +
+      (b.dataset.rpreset === rp ? 'bg-rose-500/15 text-rose-100 ring-1 ring-inset ring-rose-500/50' : 'bg-slate-900 text-slate-200 hover:bg-slate-800');
   });
 
   // Front against front: the share of each front made of the other side's counter.
@@ -781,6 +813,16 @@ document.querySelectorAll('.presetBtn').forEach((b) => b.addEventListener('click
   renderAttacker();
 }));
 
+$('reportPresets').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-rpreset]');
+  if (!b) return;
+  const p = REPORT_PRESETS[b.dataset.rpreset];
+  Object.assign(state.atk, { march:'solo', stat:p.stat, def:p.def, hp:p.hp, formation:p.formation, stance:p.stance });
+  COMBAT_KEYS.forEach((yk) => { state.atk.mana[yk] = p.mana; });
+  state.atk.troops = reportGrid(p);
+  renderAttacker(); renderMana(); syncAllInputs();
+});
+
 ['slAtkTotal', 'inAtkTotal'].forEach((id) => $(id).addEventListener('input', (e) => {
   const m = MARCH[state.atk.march];
   let v = Number(e.target.value);
@@ -926,6 +968,7 @@ try {
   buildTierMixes();
   buildDefStats();
   buildAtkGrid();
+  buildReportPresets();
   buildMana();
   renderAll();
   syncAllInputs();
