@@ -52,12 +52,14 @@ const refillMarch = () => { state.atk.troops = fillTroops(state.atk.total, state
 const marchTotal = () => TIER_KEYS.reduce((s, tk) => s + TYPE_KEYS.reduce((q, yk) => q + state.atk.troops[tk][yk], 0), 0);
 const marchTypeCount = (yk) => TIER_KEYS.reduce((s, tk) => s + state.atk.troops[tk][yk], 0);
 
+// short labels are for phones, where the full ones squeeze the number boxes until values clip
 const STAT_ROWS = [
-  { key:'inf',  label:'Infantry' },
-  { key:'rng',  label:'Ranged' },
-  { key:'cav',  label:'Cavalry' },
-  { key:'army', label:'Army (all)' }
+  { key:'inf',  label:'Infantry',   short:'Inf' },
+  { key:'rng',  label:'Ranged',     short:'Rng' },
+  { key:'cav',  label:'Cavalry',    short:'Cav' },
+  { key:'army', label:'Army (all)', short:'Army' }
 ];
+const STAT_GRID = 'grid grid-cols-[2.5rem_repeat(3,minmax(0,1fr))] items-center gap-x-1.5 sm:grid-cols-12 sm:gap-x-2';
 const STAT_COLS = [
   { key:'atk', label:'ATK' },
   { key:'def', label:'DEF' },
@@ -99,12 +101,12 @@ function buildTiers() {
           <span class="text-sm font-medium text-slate-300">${TYPE[yk].name}</span>
           <span id="mtm-${tk}-${yk}" class="num text-xs text-slate-400 sm:hidden">0</span>
         </div>
-        <div class="col-span-7 sm:col-span-5">
+        <div class="col-span-7 sm:col-span-4">
           <input id="sl-${tk}-${yk}" data-tier="${tk}" data-type="${yk}" data-role="slider" type="range"
             min="0" max="${t.max}" step="${t.step}" value="${state.troops[tk][yk]}"
             aria-label="${t.name} ${TYPE[yk].name} count" />
         </div>
-        <div class="col-span-5 sm:col-span-2">
+        <div class="col-span-5 sm:col-span-3">
           <input id="in-${tk}-${yk}" data-tier="${tk}" data-type="${yk}" data-role="number" type="number"
             min="0" max="${t.max}" step="${t.step}" value="${state.troops[tk][yk]}"
             class="field num w-full px-2 py-1.5 text-right text-sm font-semibold text-slate-100"
@@ -188,22 +190,22 @@ function renderMana() {
 
 function buildDefStats() {
   const head = `
-    <div class="grid grid-cols-12 items-center gap-x-2 px-4 pb-1 pt-2.5">
-      <span class="col-span-3 font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400">Troops</span>
-      ${STAT_COLS.map((c) => `<span class="col-span-3 text-right font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400">${c.label}</span>`).join('')}
+    <div class="${STAT_GRID} px-4 pb-1 pt-2.5">
+      <span class="font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400 sm:col-span-3"><span class="hidden sm:inline">Troops</span></span>
+      ${STAT_COLS.map((c) => `<span class="sm:col-span-3 text-right font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400">${c.label}</span>`).join('')}
     </div>`;
 
   const rows = STAT_ROWS.map((r) => `
-    <div class="grid grid-cols-12 items-center gap-x-2 px-4 py-2 ${r.key === 'army' ? 'bg-slate-950/40' : ''}">
-      <span class="col-span-3 text-sm font-medium ${r.key === 'army' ? 'text-accent-300' : 'text-slate-300'}">${r.label}</span>
+    <div class="${STAT_GRID} px-4 py-2 ${r.key === 'army' ? 'bg-slate-950/40' : ''}">
+      <span class="text-sm font-medium sm:col-span-3 ${r.key === 'army' ? 'text-accent-300' : 'text-slate-300'}"><span class="sm:hidden">${r.short}</span><span class="hidden sm:inline">${r.label}</span></span>
       ${STAT_COLS.map((c) => `
-        <div class="col-span-3">
+        <div class="sm:col-span-3">
           <div class="relative">
             <input data-srow="${r.key}" data-scol="${c.key}" type="number" min="0" max="${STAT_CAP}" step="1"
               value="${state.def.stats[r.key][c.key]}"
-              class="field num w-full py-1.5 pl-1 pr-4 text-right text-[13px] font-semibold text-slate-100"
+              class="field num w-full py-1.5 pl-0.5 pr-3.5 text-right text-[12px] font-semibold text-slate-100 sm:pl-1 sm:pr-4 sm:text-[13px]"
               aria-label="${r.label} ${c.label} percent" />
-            <span class="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">%</span>
+            <span class="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 sm:right-1.5">%</span>
           </div>
         </div>`).join('')}
     </div>`).join('');
@@ -343,8 +345,8 @@ function renderAttacker() {
     const on = c > 0;
     return `
     <div class="px-4 py-2.5">
-      <div class="font-mono text-[9px] uppercase tracking-[0.18em] ${on ? 'text-rose-400/90' : 'text-slate-500'}">${TYPE[yk].short}</div>
-      <div class="num text-sm font-semibold ${on ? 'text-rose-200' : 'text-slate-500'}">${compact(c)}</div>
+      <div class="font-mono text-[9px] uppercase tracking-[0.18em] ${on ? 'text-rose-400/90' : 'text-slate-400'}">${TYPE[yk].short}</div>
+      <div class="num text-sm font-semibold ${on ? 'text-rose-200' : 'text-slate-400'}">${compact(c)}</div>
     </div>`;
   }).join('');
 

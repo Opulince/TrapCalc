@@ -93,7 +93,8 @@
           <button id="btnResetStats" class="rounded-md border border-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition hover:border-slate-600 hover:text-slate-100">Reset</button>
         </div>
 
-        <div id="defStatWrap" class="divide-y divide-slate-800"></div>
+        <!-- min-height reserves the JS-built grid (measured 410-417px phone, 312-327px sm+) so the page does not jump on load -->
+        <div id="defStatWrap" class="min-h-[410px] divide-y divide-slate-800 sm:min-h-[312px]"></div>
         <div class="border-t border-slate-800">
           <div class="px-4 py-3">
             <div class="mb-1.5 flex items-baseline justify-between gap-3">
@@ -304,10 +305,10 @@
           <div class="mb-2 text-sm font-medium text-slate-300">March Type</div>
           <div class="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-slate-700 bg-slate-800">
             <button data-march="solo" class="marchBtn px-2 py-2.5 text-xs font-semibold transition">
-              Solo March <span class="block font-mono text-[10px] font-normal opacity-70">10K – 375K</span>
+              Solo March <span class="block font-mono text-[10px] font-normal">10K – 375K</span>
             </button>
             <button data-march="rally" class="marchBtn px-2 py-2.5 text-xs font-semibold transition">
-              Full Rally <span class="block font-mono text-[10px] font-normal opacity-70">2.00M – 2.45M</span>
+              Full Rally <span class="block font-mono text-[10px] font-normal">2.00M – 2.45M</span>
             </button>
           </div>
         </div>
@@ -469,6 +470,7 @@
       <a class="hover:text-slate-200" href="about">About &amp; how it's calibrated</a> ·
       <a class="hover:text-slate-200" href="privacy">Privacy</a>
     </p>
+    <p class="mt-2">Fan-made tool. Not affiliated with or endorsed by IGG, the maker of Lords Mobile.</p>
   </footer>
 </main>
 
